@@ -32,6 +32,10 @@
     chatroomName: "[class*='chatroom__nameBox__name']",
     // 送信ボタン
     sendButton: ".chatroom__toolBar__sendBtn",
+    // 各メッセージの操作ボックス（「了解しました」ボタンが入っている。ボタン自体はクラス無し）
+    ackButtonBox: ".chatListItemToolBox",
+    // 「了解しました」ボタンのラベル（完全一致）
+    ackButtonText: "了解しました",
     // メッセージ入力欄
     composer: "textarea.chatroom__messageTextArea",
   };
@@ -80,14 +84,22 @@
   }
 
   function initReplyDetection() {
-    // 送信ボタンのクリック
+    // 送信ボタン / 「了解しました」ボタンのクリック
     document.addEventListener(
       "click",
       (ev) => {
         if (!(ev.target instanceof Element)) return;
-        const btn = ev.target.closest(SELECTORS.sendButton);
-        if (!btn) return;
-        recordReply(recipientOfChatroom(btn));
+
+        const sendBtn = ev.target.closest(SELECTORS.sendButton);
+        if (sendBtn) {
+          recordReply(recipientOfChatroom(sendBtn));
+          return;
+        }
+
+        const ackBtn = ev.target.closest(SELECTORS.ackButtonBox + " button");
+        if (ackBtn && (ackBtn.textContent || "").trim() === SELECTORS.ackButtonText) {
+          recordReply(recipientOfChatroom(ackBtn));
+        }
       },
       true
     );
