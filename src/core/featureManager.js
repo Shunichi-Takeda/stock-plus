@@ -13,6 +13,24 @@
   const features = [];
 
   /**
+   * インスタンスガード:
+   * 拡張を再読み込みすると、ページをリロードするまで古いcontent scriptが
+   * ページ内に残留し（オーファン化）、新旧インスタンスが二重に動作して
+   * 互いのDOM操作を打ち消し合う。これを防ぐため、最後に読み込まれた
+   * インスタンスのIDをDOMに記録し、各インスタンスは自分が最新のときだけ
+   * 動作する。
+   */
+  const INSTANCE_ID = Date.now() + "-" + Math.random().toString(36).slice(2);
+  document.documentElement.setAttribute("data-stock-plus-instance", INSTANCE_ID);
+  window.StockPlus.instanceId = INSTANCE_ID;
+  window.StockPlus.isCurrentInstance = function () {
+    return (
+      document.documentElement.getAttribute("data-stock-plus-instance") ===
+      INSTANCE_ID
+    );
+  };
+
+  /**
    * @param {{id: string, name: string, init: () => void}} feature
    */
   window.StockPlus.registerFeature = function (feature) {

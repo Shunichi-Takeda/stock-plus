@@ -135,6 +135,7 @@
     document.addEventListener(
       "click",
       (ev) => {
+        if (!window.StockPlus.isCurrentInstance()) return;
         if (!(ev.target instanceof Element)) return;
 
         const sendBtn = ev.target.closest(SELECTORS.sendButton);
@@ -155,6 +156,7 @@
     document.addEventListener(
       "keydown",
       (ev) => {
+        if (!window.StockPlus.isCurrentInstance()) return;
         if (ev.key !== "Enter" || ev.shiftKey || ev.isComposing) return;
         const target = ev.target;
         if (!(target instanceof Element) || !target.matches(SELECTORS.composer)) return;
@@ -168,9 +170,20 @@
 
   function ensureFilterTab() {
     const box = document.querySelector(SELECTORS.tabBox);
-    if (!box || box.querySelector("." + TAB_CLASS)) return;
+    if (!box) return;
+
+    // 別インスタンス（オーファン化した旧content script）が作ったタブは
+    // クリックハンドラが死んでいるため、作り直す
+    const existing = box.querySelector("." + TAB_CLASS);
+    if (existing) {
+      if (existing.dataset.stockPlusInstance === window.StockPlus.instanceId) {
+        return;
+      }
+      existing.remove();
+    }
 
     const tab = document.createElement("a");
+    tab.dataset.stockPlusInstance = window.StockPlus.instanceId;
     tab.className =
       SELECTORS.stockTab.replace(/^\./, "").replace(/\./g, " ") + " " + TAB_CLASS;
     tab.textContent = "返信済み";
@@ -313,6 +326,7 @@
     document.addEventListener(
       "click",
       (ev) => {
+        if (!window.StockPlus.isCurrentInstance()) return;
         if (!(ev.target instanceof Element)) return;
         const stockTab = ev.target.closest(SELECTORS.stockTab);
         if (stockTab && !stockTab.classList.contains(TAB_CLASS) && filterActive) {
@@ -357,6 +371,7 @@
     if (refreshTimer) return;
     refreshTimer = setTimeout(() => {
       refreshTimer = null;
+      if (!window.StockPlus.isCurrentInstance()) return;
       ensureFilterTab();
       refreshBadges();
       updateTabState();
