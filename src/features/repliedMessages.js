@@ -32,6 +32,8 @@
     chatroom: ".chatroom",
     // チャットウィンドウ内の宛先名（--forDirect等のmodifier差異を吸収）
     chatroomName: "[class*='chatroom__nameBox__name']",
+    // 1対1のダイレクトチャットは __name 要素が無く、相手名は memberNames に入る
+    chatroomNameFallback: ".chatroom__nameBox__memberNames",
     // 送信ボタン
     sendButton: ".chatroom__toolBar__sendBtn",
     // 各メッセージの操作ボックス（「了解しました」ボタンが入っている。ボタン自体はクラス無し）
@@ -94,7 +96,9 @@
   function recipientOfChatroom(el) {
     const room = el.closest(SELECTORS.chatroom);
     if (!room) return null;
-    const nameEl = room.querySelector(SELECTORS.chatroomName);
+    const nameEl =
+      room.querySelector(SELECTORS.chatroomName) ||
+      room.querySelector(SELECTORS.chatroomNameFallback);
     const text = nameEl && nameEl.textContent && nameEl.textContent.trim();
     return text || null;
   }
