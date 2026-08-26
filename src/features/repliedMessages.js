@@ -227,21 +227,45 @@
       ".chatGroupsModal__header__searchInputCell input"
     );
     if (!input) return;
+
+    // 検索結果が自前フィルタで隠れないよう解除しておく
+    setFilter(false);
+
     // 改名されやすい【状態】プレフィックスを除いた先頭部分で検索する
     const query = recipient.replace(/【[^】]*】/g, "").trim().slice(0, 15);
     const setter = Object.getOwnPropertyDescriptor(
       window.HTMLInputElement.prototype,
       "value"
     ).set;
+    input.focus();
     setter.call(input, query);
     input.dispatchEvent(new Event("input", { bubbles: true }));
-    // 検索結果の「タイトル」タブがあれば選択する
-    setTimeout(() => {
+    // Stockの検索はinputイベントでは発火せず、Enter（またはsubmit）が必要
+    input.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Enter", bubbles: true })
+    );
+    input.dispatchEvent(
+      new KeyboardEvent("keyup", { key: "Enter", bubbles: true })
+    );
+    const form = input.closest("form");
+    if (form) {
+      form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    }
+
+    // 検索結果の「タイトル」タブが出現したら選択する（最大3秒ポーリング）
+    let attempts = 0;
+    const timer = setInterval(() => {
+      attempts++;
       const titleTab = Array.from(
-        document.querySelectorAll(".chatGroupsModal__searchTabBox a, .chatGroupsModal__searchTabBox button")
+        document.querySelectorAll(".chatGroupsModal__searchTabBox__tab")
       ).find((el) => (el.textContent || "").trim().startsWith("タイトル"));
-      if (titleTab) titleTab.click();
-    }, 800);
+      if (titleTab) {
+        clearInterval(timer);
+        if (!titleTab.classList.contains("active")) titleTab.click();
+      } else if (attempts > 15) {
+        clearInterval(timer);
+      }
+    }, 200);
   }
 
   /**
