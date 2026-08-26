@@ -36,8 +36,8 @@
     ackButtonBox: ".chatListItemToolBox",
     // 「了解しました」ボタンのラベル（完全一致）
     ackButtonText: "了解しました",
-    // メッセージ入力欄
-    composer: "textarea.chatroom__messageTextArea",
+    // メッセージ入力欄（チャットウィンドウ内のtextarea全般）
+    composer: ".chatroom textarea",
   };
   // ----------------------------------------------------------------------
 
@@ -83,6 +83,25 @@
     scheduleRefresh();
   }
 
+  /**
+   * 送信操作の後、入力欄が空になったことを確認してから記録する。
+   * Enter送信/Cmd+Enter送信/ボタン送信のどの設定でも動き、
+   * 「Enterが改行扱いの環境」での誤記録も防げる。
+   */
+  function armSendCheck(el) {
+    const room = el.closest(SELECTORS.chatroom);
+    if (!room) return;
+    const composer = room.querySelector("textarea");
+    if (!composer) return;
+    const before = (composer.value || "").trim();
+    if (!before) return;
+    setTimeout(() => {
+      if (!(composer.value || "").trim()) {
+        recordReply(recipientOfChatroom(composer));
+      }
+    }, 400);
+  }
+
   function initReplyDetection() {
     // 送信ボタン / 「了解しました」ボタンのクリック
     document.addEventListener(
@@ -92,7 +111,7 @@
 
         const sendBtn = ev.target.closest(SELECTORS.sendButton);
         if (sendBtn) {
-          recordReply(recipientOfChatroom(sendBtn));
+          armSendCheck(sendBtn);
           return;
         }
 
@@ -104,15 +123,14 @@
       true
     );
 
-    // Cmd+Enter / Ctrl+Enter による送信（入力欄内）
+    // キーボードによる送信（Enter / Cmd+Enter / Ctrl+Enter。Shift+Enterは改行）
     document.addEventListener(
       "keydown",
       (ev) => {
-        if (ev.key !== "Enter" || !(ev.metaKey || ev.ctrlKey)) return;
+        if (ev.key !== "Enter" || ev.shiftKey || ev.isComposing) return;
         const target = ev.target;
         if (!(target instanceof Element) || !target.matches(SELECTORS.composer)) return;
-        if (!(target.value || "").trim()) return;
-        recordReply(recipientOfChatroom(target));
+        armSendCheck(target);
       },
       true
     );
