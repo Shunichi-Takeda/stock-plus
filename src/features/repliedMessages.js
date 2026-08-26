@@ -2,107 +2,84 @@
  * Stock Plus - 機能: 返答済みメッセージトラッキング
  *
  * やること:
- *  1. メッセージ画面で「送信/返信」操作を検知し、宛先（トーク相手・スレッド名）を
+ *  1. メッセージ（チャット）で「送信」操作を検知し、宛先（トーク相手・グループ名）を
  *     localStorageに記録する（保存期間: 30日。期限切れは自動削除）。
- *  2. メッセージ一覧の項目に「✓返答済み」バッジを付ける。
+ *  2. メッセージ一覧（チャットグループモーダル）の項目に「✓返答済み」バッジを付ける。
  *  3. フローティングボタンから「自身が返答したメッセージの宛先一覧」を
- *     時系列（新しい順）で表示するパネルを開ける。
+ *     時系列（新しい順）で表示するパネルを開ける。行クリックで該当スレッドを開く。
  *
- * StockはSPAでDOM構造が変わる可能性があるため、セレクタ類は
- * このファイル冒頭の SELECTORS にまとめてあり、ここだけ直せば追従できる。
+ * セレクタは実際のStock（stock-app.jp）のDOM（2026-08確認）に合わせてある。
+ * Stock側のDOM変更時は SELECTORS だけ直せば追従できる。
  */
 (function () {
   "use strict";
 
   // ---- チューニングポイント: Stock側のDOMに合わせて調整する場所 ----------
   const SELECTORS = {
-    // メッセージ一覧の1項目とみなす候補（上から順に試す）
-    listItem: [
-      "[class*='messageList'] li",
-      "[class*='message-list'] li",
-      "[class*='threadList'] li",
-      "[class*='talk'] li",
-      "aside li",
-      "nav li",
-    ],
-    // 開いているスレッドの宛先/タイトルの候補（上から順に試す）
-    threadTitle: [
-      "[class*='messageHeader'] [class*='title']",
-      "[class*='message-header'] [class*='title']",
-      "[class*='threadHeader']",
-      "main header h1",
-      "main header h2",
-      "header [class*='title']",
-    ],
-    // 送信/返信ボタンとみなすテキスト・ラベルのパターン
-    sendButtonText: /^(送信|返信|返信する|送信する|Send|Reply)$/,
-    // メッセージ入力欄の候補
-    composer: "textarea, [contenteditable='true']",
+    // ヘッダーの「メッセージ」ボタン（チャットグループモーダルを開く）
+    openChatModalButton: "button.openChatGroupsModalBtn",
+    // メッセージ一覧の1項目
+    listItem: "li.chatGroupListItem",
+    // 一覧項目内の宛先名（ダイレクト / グループ）
+    listItemName:
+      ".chatGroupListItem__wrappedName, .chatGroupListItem__groupName",
+    // 一覧項目のクリック対象（スレッドを開く領域）
+    listItemClickTarget: ".chatGroupListItem__contentCell",
+    // 開いているチャットウィンドウ
+    chatroom: ".chatroom",
+    // チャットウィンドウ内の宛先名（--forDirect等のmodifier差異を吸収）
+    chatroomName: "[class*='chatroom__nameBox__name']",
+    // 送信ボタン
+    sendButton: ".chatroom__toolBar__sendBtn",
+    // メッセージ入力欄
+    composer: "textarea.chatroom__messageTextArea",
   };
   // ----------------------------------------------------------------------
 
   const store = new window.StockPlus.TtlStore("repliedMessages"); // TTL 30日
 
-  /** 現在開いているスレッドの宛先名を取得する */
-  function currentRecipient() {
-    for (const sel of SELECTORS.threadTitle) {
-      const el = document.querySelector(sel);
-      const text = el && el.textContent && el.textContent.trim();
-      if (text) return text;
-    }
-    // フォールバック: ページタイトル
-    const t = document.title.replace(/\s*[-|｜].*$/, "").trim();
-    return t || "(宛先不明)";
+  /** チャットウィンドウ内の要素から宛先名を取得する */
+  function recipientOfChatroom(el) {
+    const room = el.closest(SELECTORS.chatroom);
+    if (!room) return null;
+    const nameEl = room.querySelector(SELECTORS.chatroomName);
+    const text = nameEl && nameEl.textContent && nameEl.textContent.trim();
+    return text || null;
   }
 
   /** 返答を1件記録する */
-  function recordReply() {
-    const recipient = currentRecipient();
-    const entry = store.upsert(
-      {
-        key: recipient + "::" + location.pathname,
-        recipient: recipient,
-        url: location.href,
-      },
-      "key"
-    );
-    console.info("[Stock Plus] 返答を記録:", entry.recipient);
+  function recordReply(recipient) {
+    if (!recipient) return;
+    store.upsert({ key: recipient, recipient: recipient }, "key");
+    console.info("[Stock Plus] 返答を記録:", recipient);
     scheduleBadgeRefresh();
     refreshPanelIfOpen();
   }
 
   // ---- 返答（送信）操作の検知 -------------------------------------------
 
-  function looksLikeSendButton(el) {
-    const btn = el.closest("button, [role='button'], input[type='submit']");
-    if (!btn) return null;
-    const label =
-      (btn.getAttribute("aria-label") || btn.value || btn.textContent || "").trim();
-    return SELECTORS.sendButtonText.test(label) ? btn : null;
-  }
-
   function initReplyDetection() {
-    // クリックによる送信
+    // 送信ボタンのクリック
     document.addEventListener(
       "click",
       (ev) => {
         if (!(ev.target instanceof Element)) return;
-        if (looksLikeSendButton(ev.target)) recordReply();
+        const btn = ev.target.closest(SELECTORS.sendButton);
+        if (!btn) return;
+        recordReply(recipientOfChatroom(btn));
       },
       true
     );
 
-    // キーボードによる送信（Enter / Cmd+Enter / Ctrl+Enter を入力欄内で）
+    // Cmd+Enter / Ctrl+Enter による送信（入力欄内）
     document.addEventListener(
       "keydown",
       (ev) => {
-        if (ev.key !== "Enter" || ev.isComposing) return;
+        if (ev.key !== "Enter" || !(ev.metaKey || ev.ctrlKey)) return;
         const target = ev.target;
         if (!(target instanceof Element) || !target.matches(SELECTORS.composer)) return;
-        // Shift+Enter は改行とみなして無視。プレーンEnter/修飾付きEnterは送信扱い
-        if (ev.shiftKey) return;
-        const text = (target.value || target.textContent || "").trim();
-        if (text) recordReply();
+        if (!(target.value || "").trim()) return;
+        recordReply(recipientOfChatroom(target));
       },
       true
     );
@@ -121,31 +98,25 @@
     }, 300);
   }
 
-  function findListItems() {
-    for (const sel of SELECTORS.listItem) {
-      const items = document.querySelectorAll(sel);
-      if (items.length > 0) return Array.from(items);
-    }
-    return [];
-  }
-
   function refreshBadges() {
-    const entries = store.load();
-    if (entries.length === 0) return;
-    const recipients = new Set(entries.map((e) => e.recipient));
+    const items = document.querySelectorAll(SELECTORS.listItem);
+    if (items.length === 0) return;
+    const recipients = new Set(store.load().map((e) => e.recipient));
 
-    for (const item of findListItems()) {
-      const hasBadge = item.querySelector("." + BADGE_CLASS);
-      const text = (item.textContent || "").trim();
-      const replied = Array.from(recipients).some((r) => r && text.includes(r));
-      if (replied && !hasBadge) {
+    for (const item of items) {
+      const nameEl = item.querySelector(SELECTORS.listItemName);
+      if (!nameEl) continue;
+      const existing = item.querySelector("." + BADGE_CLASS);
+      const name = (nameEl.textContent || "").trim();
+      const replied = recipients.has(name);
+      if (replied && !existing) {
         const badge = document.createElement("span");
         badge.className = BADGE_CLASS;
         badge.title = "返答済み（Stock Plus）";
         badge.textContent = "✓ 返答済み";
-        item.appendChild(badge);
-      } else if (!replied && hasBadge) {
-        hasBadge.remove();
+        nameEl.appendChild(badge);
+      } else if (!replied && existing) {
+        existing.remove();
       }
     }
   }
@@ -154,6 +125,36 @@
     const observer = new MutationObserver(() => scheduleBadgeRefresh());
     observer.observe(document.body, { childList: true, subtree: true });
     scheduleBadgeRefresh();
+  }
+
+  // ---- スレッドを開く（パネル行クリック時） -------------------------------
+
+  /** メッセージモーダルを開き、宛先名が一致するスレッドをクリックする */
+  function openThreadByName(recipient) {
+    const findAndClick = () => {
+      for (const item of document.querySelectorAll(SELECTORS.listItem)) {
+        const nameEl = item.querySelector(SELECTORS.listItemName);
+        if (nameEl && (nameEl.textContent || "").trim() === recipient) {
+          const target =
+            item.querySelector(SELECTORS.listItemClickTarget) || item;
+          target.click();
+          return true;
+        }
+      }
+      return false;
+    };
+
+    if (findAndClick()) return;
+
+    // 一覧が閉じている場合はモーダルを開いてから再試行
+    const opener = document.querySelector(SELECTORS.openChatModalButton);
+    if (!opener) return;
+    opener.click();
+    let attempts = 0;
+    const timer = setInterval(() => {
+      attempts++;
+      if (findAndClick() || attempts > 10) clearInterval(timer);
+    }, 200);
   }
 
   // ---- 返答済み一覧パネル ------------------------------------------------
@@ -183,9 +184,10 @@
     }
 
     for (const e of entries) {
-      const row = document.createElement("a");
+      const row = document.createElement("button");
+      row.type = "button";
       row.className = "stock-plus-panel-row";
-      row.href = e.url || "#";
+      row.title = "クリックでスレッドを開く";
       const name = document.createElement("span");
       name.className = "stock-plus-panel-recipient";
       name.textContent = e.recipient;
@@ -194,6 +196,10 @@
       time.textContent = formatDate(e.savedAt);
       row.appendChild(name);
       row.appendChild(time);
+      row.addEventListener("click", () => {
+        panel.hidden = true;
+        openThreadByName(e.recipient);
+      });
       list.appendChild(row);
     }
   }

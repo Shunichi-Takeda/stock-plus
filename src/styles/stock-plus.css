@@ -15,10 +15,10 @@
   white-space: nowrap;
 }
 
-/* フローティングボタン */
+/* フローティングボタン（Stockのチャットウィンドウは右下に出るため左下に配置） */
 #stock-plus-fab {
   position: fixed;
-  right: 20px;
+  left: 20px;
   bottom: 20px;
   z-index: 2147483646;
   width: 44px;
@@ -38,7 +38,7 @@
 /* 返答済み一覧パネル */
 #stock-plus-replied-panel {
   position: fixed;
-  right: 20px;
+  left: 20px;
   bottom: 74px;
   z-index: 2147483647;
   width: 320px;
@@ -93,8 +93,13 @@
   justify-content: space-between;
   align-items: baseline;
   gap: 10px;
+  width: 100%;
   padding: 8px 12px;
-  text-decoration: none;
+  border: none;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
   color: inherit;
 }
 .stock-plus-panel-row:hover {
