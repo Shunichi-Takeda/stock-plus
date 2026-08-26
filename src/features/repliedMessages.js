@@ -5,8 +5,9 @@
  *  1. メッセージ（チャット）で「送信」操作を検知し、宛先（トーク相手・グループ名）を
  *     localStorageに記録する（保存期間: 30日。期限切れは自動削除）。
  *  2. メッセージ一覧（チャットグループモーダル）の項目に「✓返答済み」バッジを付ける。
- *  3. フローティングボタンから「自身が返答したメッセージの宛先一覧」を
- *     時系列（新しい順）で表示するパネルを開ける。行クリックで該当スレッドを開く。
+ *  3. 一覧のタブ行（すべて／ノートに紐づく／ノートに紐づかない）の右に
+ *     太字の「返信済み」リンクを追加し、クリックで一覧を
+ *     「自分が返信したことのあるメッセージ」だけに絞り込む。
  *
  * セレクタは実際のStock（stock-app.jp）のDOM（2026-08確認）に合わせてある。
  * Stock側のDOM変更時は SELECTORS だけ直せば追従できる。
@@ -16,15 +17,15 @@
 
   // ---- チューニングポイント: Stock側のDOMに合わせて調整する場所 ----------
   const SELECTORS = {
-    // ヘッダーの「メッセージ」ボタン（チャットグループモーダルを開く）
-    openChatModalButton: "button.openChatGroupsModalBtn",
     // メッセージ一覧の1項目
     listItem: "li.chatGroupListItem",
     // 一覧項目内の宛先名（ダイレクト / グループ）
     listItemName:
       ".chatGroupListItem__wrappedName, .chatGroupListItem__groupName",
-    // 一覧項目のクリック対象（スレッドを開く領域）
-    listItemClickTarget: ".chatGroupListItem__contentCell",
+    // 一覧モーダルのタブ行（すべて／ノートに紐づく／ノートに紐づかない）
+    tabBox: ".chatGroupsModal__tabBox",
+    // Stock標準のタブ
+    stockTab: ".chatGroupsModal__tabBox__tab",
     // 開いているチャットウィンドウ
     chatroom: ".chatroom",
     // チャットウィンドウ内の宛先名（--forDirect等のmodifier差異を吸収）
@@ -36,7 +37,30 @@
   };
   // ----------------------------------------------------------------------
 
+  const BADGE_CLASS = "stock-plus-replied-badge";
+  const TAB_CLASS = "stock-plus-replied-tab";
+  const HIDDEN_CLASS = "stock-plus-hidden";
+
   const store = new window.StockPlus.TtlStore("repliedMessages"); // TTL 30日
+  let filterActive = false;
+
+  function repliedRecipients() {
+    return new Set(store.load().map((e) => e.recipient));
+  }
+
+  /** 一覧項目の宛先名（自前バッジのテキストを除外して取得） */
+  function nameOfItem(item) {
+    const el = item.querySelector(SELECTORS.listItemName);
+    if (!el) return "";
+    let text = "";
+    for (const node of el.childNodes) {
+      if (node.nodeType === 1 && node.classList.contains(BADGE_CLASS)) continue;
+      text += node.textContent;
+    }
+    return text.trim();
+  }
+
+  // ---- 返答（送信）操作の検知 -------------------------------------------
 
   /** チャットウィンドウ内の要素から宛先名を取得する */
   function recipientOfChatroom(el) {
@@ -52,11 +76,8 @@
     if (!recipient) return;
     store.upsert({ key: recipient, recipient: recipient }, "key");
     console.info("[Stock Plus] 返答を記録:", recipient);
-    scheduleBadgeRefresh();
-    refreshPanelIfOpen();
+    scheduleRefresh();
   }
-
-  // ---- 返答（送信）操作の検知 -------------------------------------------
 
   function initReplyDetection() {
     // 送信ボタンのクリック
@@ -85,30 +106,75 @@
     );
   }
 
-  // ---- 一覧への「✓返答済み」バッジ付与 ----------------------------------
+  // ---- 「返信済み」フィルタタブ ------------------------------------------
 
-  const BADGE_CLASS = "stock-plus-replied-badge";
-  let badgeTimer = null;
+  function ensureFilterTab() {
+    const box = document.querySelector(SELECTORS.tabBox);
+    if (!box || box.querySelector("." + TAB_CLASS)) return;
 
-  function scheduleBadgeRefresh() {
-    if (badgeTimer) return;
-    badgeTimer = setTimeout(() => {
-      badgeTimer = null;
-      refreshBadges();
-    }, 300);
+    const tab = document.createElement("a");
+    tab.className =
+      SELECTORS.stockTab.replace(/^\./, "").replace(/\./g, " ") + " " + TAB_CLASS;
+    tab.textContent = "返信済み";
+    tab.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      setFilter(!filterActive);
+    });
+    box.appendChild(tab);
+    updateTabState();
   }
+
+  function setFilter(on) {
+    filterActive = on;
+    updateTabState();
+    applyFilter();
+  }
+
+  function updateTabState() {
+    const tab = document.querySelector("." + TAB_CLASS);
+    if (!tab) return;
+    tab.classList.toggle("active", filterActive);
+    const count = repliedRecipients().size;
+    tab.textContent = count > 0 ? `返信済み(${count})` : "返信済み";
+  }
+
+  /** フィルタON時、返信したことのある宛先以外の項目を隠す */
+  function applyFilter() {
+    const recipients = repliedRecipients();
+    for (const item of document.querySelectorAll(SELECTORS.listItem)) {
+      const hide = filterActive && !recipients.has(nameOfItem(item));
+      item.classList.toggle(HIDDEN_CLASS, hide);
+    }
+  }
+
+  function initFilterTab() {
+    // Stock標準タブをクリックしたら自前フィルタは解除する
+    document.addEventListener(
+      "click",
+      (ev) => {
+        if (!(ev.target instanceof Element)) return;
+        const stockTab = ev.target.closest(SELECTORS.stockTab);
+        if (stockTab && !stockTab.classList.contains(TAB_CLASS) && filterActive) {
+          setFilter(false);
+        }
+      },
+      true
+    );
+  }
+
+  // ---- 一覧への「✓返答済み」バッジ付与 ----------------------------------
 
   function refreshBadges() {
     const items = document.querySelectorAll(SELECTORS.listItem);
     if (items.length === 0) return;
-    const recipients = new Set(store.load().map((e) => e.recipient));
+    const recipients = repliedRecipients();
 
     for (const item of items) {
       const nameEl = item.querySelector(SELECTORS.listItemName);
       if (!nameEl) continue;
       const existing = item.querySelector("." + BADGE_CLASS);
-      const name = (nameEl.textContent || "").trim();
-      const replied = recipients.has(name);
+      const replied = recipients.has(nameOfItem(item));
       if (replied && !existing) {
         const badge = document.createElement("span");
         badge.className = BADGE_CLASS;
@@ -121,151 +187,25 @@
     }
   }
 
-  function initBadgeObserver() {
-    const observer = new MutationObserver(() => scheduleBadgeRefresh());
+  // ---- DOM変化への追従 ---------------------------------------------------
+
+  let refreshTimer = null;
+
+  function scheduleRefresh() {
+    if (refreshTimer) return;
+    refreshTimer = setTimeout(() => {
+      refreshTimer = null;
+      ensureFilterTab();
+      refreshBadges();
+      updateTabState();
+      applyFilter();
+    }, 300);
+  }
+
+  function initObserver() {
+    const observer = new MutationObserver(() => scheduleRefresh());
     observer.observe(document.body, { childList: true, subtree: true });
-    scheduleBadgeRefresh();
-  }
-
-  // ---- スレッドを開く（パネル行クリック時） -------------------------------
-
-  /** メッセージモーダルを開き、宛先名が一致するスレッドをクリックする */
-  function openThreadByName(recipient) {
-    const findAndClick = () => {
-      for (const item of document.querySelectorAll(SELECTORS.listItem)) {
-        const nameEl = item.querySelector(SELECTORS.listItemName);
-        if (nameEl && (nameEl.textContent || "").trim() === recipient) {
-          const target =
-            item.querySelector(SELECTORS.listItemClickTarget) || item;
-          target.click();
-          return true;
-        }
-      }
-      return false;
-    };
-
-    if (findAndClick()) return;
-
-    // 一覧が閉じている場合はモーダルを開いてから再試行
-    const opener = document.querySelector(SELECTORS.openChatModalButton);
-    if (!opener) return;
-    opener.click();
-    let attempts = 0;
-    const timer = setInterval(() => {
-      attempts++;
-      if (findAndClick() || attempts > 10) clearInterval(timer);
-    }, 200);
-  }
-
-  // ---- 返答済み一覧パネル ------------------------------------------------
-
-  const PANEL_ID = "stock-plus-replied-panel";
-
-  function formatDate(ts) {
-    const d = new Date(ts);
-    const pad = (n) => String(n).padStart(2, "0");
-    return (
-      `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ` +
-      `${pad(d.getHours())}:${pad(d.getMinutes())}`
-    );
-  }
-
-  function renderPanelBody(panel) {
-    const list = panel.querySelector(".stock-plus-panel-list");
-    list.textContent = "";
-    const entries = store.load().slice().sort((a, b) => b.savedAt - a.savedAt);
-
-    if (entries.length === 0) {
-      const empty = document.createElement("p");
-      empty.className = "stock-plus-panel-empty";
-      empty.textContent = "返答の記録はまだありません（記録は30日で自動削除されます）";
-      list.appendChild(empty);
-      return;
-    }
-
-    for (const e of entries) {
-      const row = document.createElement("button");
-      row.type = "button";
-      row.className = "stock-plus-panel-row";
-      row.title = "クリックでスレッドを開く";
-      const name = document.createElement("span");
-      name.className = "stock-plus-panel-recipient";
-      name.textContent = e.recipient;
-      const time = document.createElement("span");
-      time.className = "stock-plus-panel-time";
-      time.textContent = formatDate(e.savedAt);
-      row.appendChild(name);
-      row.appendChild(time);
-      row.addEventListener("click", () => {
-        panel.hidden = true;
-        openThreadByName(e.recipient);
-      });
-      list.appendChild(row);
-    }
-  }
-
-  function refreshPanelIfOpen() {
-    const panel = document.getElementById(PANEL_ID);
-    if (panel && !panel.hidden) renderPanelBody(panel);
-  }
-
-  function buildPanel() {
-    const panel = document.createElement("div");
-    panel.id = PANEL_ID;
-    panel.hidden = true;
-
-    const header = document.createElement("div");
-    header.className = "stock-plus-panel-header";
-
-    const title = document.createElement("span");
-    title.textContent = "✓ 返答済みの宛先一覧";
-
-    const clearBtn = document.createElement("button");
-    clearBtn.type = "button";
-    clearBtn.className = "stock-plus-panel-clear";
-    clearBtn.textContent = "全削除";
-    clearBtn.addEventListener("click", () => {
-      if (confirm("返答済みの記録をすべて削除しますか？")) {
-        store.clear();
-        renderPanelBody(panel);
-        refreshBadges();
-      }
-    });
-
-    const closeBtn = document.createElement("button");
-    closeBtn.type = "button";
-    closeBtn.className = "stock-plus-panel-close";
-    closeBtn.textContent = "×";
-    closeBtn.addEventListener("click", () => (panel.hidden = true));
-
-    header.appendChild(title);
-    header.appendChild(clearBtn);
-    header.appendChild(closeBtn);
-
-    const list = document.createElement("div");
-    list.className = "stock-plus-panel-list";
-
-    panel.appendChild(header);
-    panel.appendChild(list);
-    return panel;
-  }
-
-  function initPanel() {
-    const fab = document.createElement("button");
-    fab.type = "button";
-    fab.id = "stock-plus-fab";
-    fab.title = "返答済み一覧（Stock Plus）";
-    fab.textContent = "✓";
-
-    const panel = buildPanel();
-
-    fab.addEventListener("click", () => {
-      panel.hidden = !panel.hidden;
-      if (!panel.hidden) renderPanelBody(panel);
-    });
-
-    document.body.appendChild(fab);
-    document.body.appendChild(panel);
+    scheduleRefresh();
   }
 
   // ---- 機能登録 ----------------------------------------------------------
@@ -275,8 +215,8 @@
     name: "返答済みメッセージトラッキング",
     init() {
       initReplyDetection();
-      initBadgeObserver();
-      initPanel();
+      initFilterTab();
+      initObserver();
     },
   });
 })();

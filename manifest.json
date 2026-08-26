@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Stock Plus",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Stock（stock-app.jp）を拡張するツールキット。第1弾: メッセージの「返答済み」トラッキング機能。",
   "content_scripts": [
     {
