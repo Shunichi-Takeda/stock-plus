@@ -1,0 +1,120 @@
+/* Stock Plus 共通スタイル */
+
+/* 一覧の「✓返答済み」バッジ */
+.stock-plus-replied-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 9px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: #fff;
+  background: #2e9e5b;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+/* フローティングボタン */
+#stock-plus-fab {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 2147483646;
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 50%;
+  background: #2e9e5b;
+  color: #fff;
+  font-size: 20px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+#stock-plus-fab:hover {
+  background: #257f49;
+}
+
+/* 返答済み一覧パネル */
+#stock-plus-replied-panel {
+  position: fixed;
+  right: 20px;
+  bottom: 74px;
+  z-index: 2147483647;
+  width: 320px;
+  max-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  font-size: 13px;
+  color: #333;
+  overflow: hidden;
+}
+#stock-plus-replied-panel[hidden] {
+  display: none;
+}
+
+.stock-plus-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #2e9e5b;
+  color: #fff;
+  font-weight: 600;
+}
+.stock-plus-panel-header > span {
+  flex: 1;
+}
+.stock-plus-panel-clear,
+.stock-plus-panel-close {
+  border: none;
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  border-radius: 4px;
+  padding: 2px 8px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.stock-plus-panel-clear:hover,
+.stock-plus-panel-close:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.stock-plus-panel-list {
+  overflow-y: auto;
+  padding: 6px 0;
+}
+.stock-plus-panel-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 12px;
+  text-decoration: none;
+  color: inherit;
+}
+.stock-plus-panel-row:hover {
+  background: #f2f8f4;
+}
+.stock-plus-panel-recipient {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.stock-plus-panel-time {
+  flex-shrink: 0;
+  color: #888;
+  font-size: 11px;
+}
+.stock-plus-panel-empty {
+  margin: 0;
+  padding: 16px 12px;
+  color: #888;
+  text-align: center;
+}
