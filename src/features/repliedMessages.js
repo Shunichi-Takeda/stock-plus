@@ -19,9 +19,11 @@
   const SELECTORS = {
     // メッセージ一覧の1項目
     listItem: "li.chatGroupListItem",
-    // 一覧項目内の宛先名（ダイレクト / グループ）
-    listItemName:
-      ".chatGroupListItem__wrappedName, .chatGroupListItem__groupName",
+    // 一覧項目内の宛先名。ノート紐づきの項目は __groupName（フォルダパス）と
+    // __wrappedName（ノート名）の両方を持ち、チャット側の宛先名に対応するのは
+    // __wrappedName なので、必ずこちらを優先する
+    listItemName: ".chatGroupListItem__wrappedName",
+    listItemNameFallback: ".chatGroupListItem__groupName",
     // 一覧モーダルのタブ行（すべて／ノートに紐づく／ノートに紐づかない）
     tabBox: ".chatGroupsModal__tabBox",
     // Stock標準のタブ
@@ -48,20 +50,42 @@
   const store = new window.StockPlus.TtlStore("repliedMessages"); // TTL 30日
   let filterActive = false;
 
-  function repliedRecipients() {
-    return new Set(store.load().map((e) => e.recipient));
+  /**
+   * 名前の照合キー。以下のゆらぎを吸収して比較する:
+   *  - NBSP・全角/半角・連続空白の差異（一覧とチャットで空白文字が異なる）
+   *  - 「【〇】→【済】」のような状態プレフィックスの付け替え（ノート改名）
+   *  - 「飛田（とびた）悠太」→「飛田悠太」のようなかっこ書きの増減
+   */
+  function matchKey(s) {
+    return (s || "")
+      .normalize("NFKC")
+      .replace(/【[^】]*】/g, "")
+      .replace(/[（(][^）)]*[）)]/g, "")
+      .replace(/\s+/g, "")
+      .toLowerCase();
   }
 
-  /** 一覧項目の宛先名（自前バッジのテキストを除外して取得） */
+  /** 記録済みエントリのMap（照合キー → エントリ） */
+  function repliedEntryMap() {
+    const map = new Map();
+    for (const e of store.load()) {
+      map.set(matchKey(e.recipient), e);
+    }
+    return map;
+  }
+
+  /** 一覧項目の宛先名の照合キー（自前バッジのテキストは除外） */
   function nameOfItem(item) {
-    const el = item.querySelector(SELECTORS.listItemName);
+    const el =
+      item.querySelector(SELECTORS.listItemName) ||
+      item.querySelector(SELECTORS.listItemNameFallback);
     if (!el) return "";
     let text = "";
     for (const node of el.childNodes) {
       if (node.nodeType === 1 && node.classList.contains(BADGE_CLASS)) continue;
       text += node.textContent;
     }
-    return text.trim();
+    return matchKey(text);
   }
 
   // ---- 返答（送信）操作の検知 -------------------------------------------
@@ -75,10 +99,10 @@
     return text || null;
   }
 
-  /** 返答を1件記録する */
+  /** 返答を1件記録する（同一スレッドへの再返答は時刻更新扱い） */
   function recordReply(recipient) {
     if (!recipient) return;
-    store.upsert({ key: recipient, recipient: recipient }, "key");
+    store.upsert({ key: matchKey(recipient), recipient: recipient }, "key");
     console.info("[Stock Plus] 返答を記録:", recipient);
     scheduleRefresh();
   }
@@ -165,16 +189,87 @@
     const tab = document.querySelector("." + TAB_CLASS);
     if (!tab) return;
     tab.classList.toggle("active", filterActive);
-    const count = repliedRecipients().size;
+    const count = repliedEntryMap().size;
     tab.textContent = count > 0 ? `返信済み(${count})` : "返信済み";
   }
 
   /** フィルタON時、返信したことのある宛先以外の項目を隠す */
   function applyFilter() {
-    const recipients = repliedRecipients();
+    const entryMap = repliedEntryMap();
+    const matched = new Set();
     for (const item of document.querySelectorAll(SELECTORS.listItem)) {
-      const hide = filterActive && !recipients.has(nameOfItem(item));
-      item.classList.toggle(HIDDEN_CLASS, hide);
+      const key = nameOfItem(item);
+      const replied = entryMap.has(key);
+      if (replied) matched.add(key);
+      item.classList.toggle(HIDDEN_CLASS, filterActive && !replied);
+    }
+    const unmatched = filterActive
+      ? Array.from(entryMap.entries())
+          .filter(([key]) => !matched.has(key))
+          .map(([, e]) => e)
+          .sort((a, b) => b.savedAt - a.savedAt)
+      : [];
+    updateFilterNote(unmatched);
+  }
+
+  function formatDate(ts) {
+    const d = new Date(ts);
+    return `${d.getMonth() + 1}/${d.getDate()}`;
+  }
+
+  /** モーダルの検索欄に宛先名を入れてタイトル検索する */
+  function searchInModal(recipient) {
+    const input = document.querySelector(
+      ".chatGroupsModal__header__searchInputCell input"
+    );
+    if (!input) return;
+    // 改名されやすい【状態】プレフィックスを除いた先頭部分で検索する
+    const query = recipient.replace(/【[^】]*】/g, "").trim().slice(0, 15);
+    const setter = Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype,
+      "value"
+    ).set;
+    setter.call(input, query);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    // 検索結果の「タイトル」タブがあれば選択する
+    setTimeout(() => {
+      const titleTab = Array.from(
+        document.querySelectorAll(".chatGroupsModal__searchTabBox a, .chatGroupsModal__searchTabBox button")
+      ).find((el) => (el.textContent || "").trim().startsWith("タイトル"));
+      if (titleTab) titleTab.click();
+    }, 800);
+  }
+
+  /**
+   * 一覧は直近分しか読み込まれないため、返信済みでも一覧に無いスレッドがある。
+   * それらをフィルタON時に一覧末尾へ表示する（クリックでタイトル検索）。
+   */
+  function updateFilterNote(unmatchedEntries) {
+    const NOTE_CLASS = "stock-plus-filter-note";
+    let note = document.querySelector("." + NOTE_CLASS);
+    if (!unmatchedEntries || unmatchedEntries.length === 0) {
+      if (note) note.remove();
+      return;
+    }
+    const list = document.querySelector(SELECTORS.listItem)?.parentElement;
+    if (!list) return;
+    if (!note) {
+      note = document.createElement("div");
+      note.className = NOTE_CLASS;
+      list.insertAdjacentElement("afterend", note);
+    }
+    note.textContent = "";
+    const head = document.createElement("p");
+    head.className = "stock-plus-filter-note-head";
+    head.textContent = `この他に返信済み ${unmatchedEntries.length}件（一覧に未読み込み。クリックで検索）:`;
+    note.appendChild(head);
+    for (const e of unmatchedEntries) {
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = "stock-plus-filter-note-row";
+      row.textContent = `${formatDate(e.savedAt)}　${e.recipient}`;
+      row.addEventListener("click", () => searchInModal(e.recipient));
+      note.appendChild(row);
     }
   }
 
@@ -198,13 +293,15 @@
   function refreshBadges() {
     const items = document.querySelectorAll(SELECTORS.listItem);
     if (items.length === 0) return;
-    const recipients = repliedRecipients();
+    const entryMap = repliedEntryMap();
 
     for (const item of items) {
-      const nameEl = item.querySelector(SELECTORS.listItemName);
+      const nameEl =
+        item.querySelector(SELECTORS.listItemName) ||
+        item.querySelector(SELECTORS.listItemNameFallback);
       if (!nameEl) continue;
       const existing = item.querySelector("." + BADGE_CLASS);
-      const replied = recipients.has(nameOfItem(item));
+      const replied = entryMap.has(nameOfItem(item));
       if (replied && !existing) {
         const badge = document.createElement("span");
         badge.className = BADGE_CLASS;

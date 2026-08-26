@@ -28,3 +28,31 @@
 .stock-plus-hidden {
   display: none !important;
 }
+
+/* フィルタON時の未読み込み一覧 */
+.stock-plus-filter-note {
+  margin: 8px 12px;
+  color: #888;
+  font-size: 11px;
+}
+.stock-plus-filter-note-head {
+  margin: 0 0 4px;
+}
+.stock-plus-filter-note-row {
+  display: block;
+  width: 100%;
+  padding: 4px 6px;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  color: #333;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.stock-plus-filter-note-row:hover {
+  background: #f2f8f4;
+}
