@@ -24,6 +24,30 @@
   color: #2e9e5b !important;
 }
 
+/* チャット詳細画面ヘッダーのピン留めボタン */
+.stock-plus-pin-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin: 0 2px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: #b0b0b0;
+  cursor: pointer;
+  vertical-align: middle;
+}
+.stock-plus-pin-btn:hover {
+  color: #666;
+  background: rgba(0, 0, 0, 0.05);
+}
+.stock-plus-pin-btn.active {
+  color: #2e9e5b;
+}
+
 /* フィルタON時に隠す一覧項目 */
 .stock-plus-hidden {
   display: none !important;
