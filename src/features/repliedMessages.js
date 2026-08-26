@@ -222,21 +222,31 @@
   }
 
   /** モーダルの検索欄に宛先名を入れてタイトル検索する */
-  function searchInModal(recipient) {
-    const input = document.querySelector(
-      ".chatGroupsModal__header__searchInputCell input"
-    );
+  async function searchInModal(recipient) {
+    const findInput = () =>
+      document.querySelector(".chatGroupsModal__header__searchInputCell input");
+    let input = findInput();
     if (!input) return;
 
     // 検索結果が自前フィルタで隠れないよう解除しておく
     setFilter(false);
 
-    // 改名されやすい【状態】プレフィックスを除いた先頭部分で検索する
-    const query = recipient.replace(/【[^】]*】/g, "").trim().slice(0, 15);
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const setter = Object.getOwnPropertyDescriptor(
       window.HTMLInputElement.prototype,
       "value"
     ).set;
+
+    // 前回の検索テキストが残っていると「同じ値の再入力」が変更なし扱いになり
+    // Enterで検索されず「すべて」一覧に戻ってしまうため、必ず一度空にしてから入れ直す
+    setter.call(input, "");
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    await sleep(300);
+
+    // 改名されやすい【状態】プレフィックスを除いた先頭部分で検索する
+    const query = recipient.replace(/【[^】]*】/g, "").trim().slice(0, 15);
+    input = findInput();
+    if (!input) return;
     input.focus();
     setter.call(input, query);
     input.dispatchEvent(new Event("input", { bubbles: true }));
@@ -252,20 +262,17 @@
       form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
     }
 
-    // 検索結果の「タイトル」タブが出現したら選択する（最大3秒ポーリング）
-    let attempts = 0;
-    const timer = setInterval(() => {
-      attempts++;
+    // 検索結果の「タイトル」タブが出現したら選択する（最大5秒ポーリング）
+    for (let i = 0; i < 25; i++) {
+      await sleep(200);
       const titleTab = Array.from(
         document.querySelectorAll(".chatGroupsModal__searchTabBox__tab")
       ).find((el) => (el.textContent || "").trim().startsWith("タイトル"));
       if (titleTab) {
-        clearInterval(timer);
         if (!titleTab.classList.contains("active")) titleTab.click();
-      } else if (attempts > 15) {
-        clearInterval(timer);
+        return;
       }
-    }, 200);
+    }
   }
 
   /**
