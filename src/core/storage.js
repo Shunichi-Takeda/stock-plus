@@ -69,6 +69,14 @@
       return stamped;
     }
 
+    /**
+     * エントリ一覧を丸ごと保存し直す（マイグレーション等でエントリの
+     * 属性を書き換えたいときに使う。savedAtは変更しない）。
+     */
+    replaceAll(entries) {
+      this._save(Array.isArray(entries) ? entries : []);
+    }
+
     /** 全消去 */
     clear() {
       this._save([]);

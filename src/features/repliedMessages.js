@@ -55,13 +55,52 @@
   // 名前ゆらぎを吸収する照合キー（core/util.js）
   const matchKey = window.StockPlus.matchKey;
 
-  /** 記録済みエントリのMap（照合キー → エントリ） */
+  /** 現在表示しているチームのID（URLの /teams/{id}/ 部分） */
+  function currentTeam() {
+    const m = location.pathname.match(/\/teams\/([^/]+)/);
+    return m ? m[1] : "";
+  }
+
+  /**
+   * 記録済みエントリのMap（照合キー → エントリ）。
+   * 現在のチームの記録だけを対象にする。チーム情報を持たない古い記録
+   * （後方互換）は、どのチームかを判定できるまで全チームで表示する
+   * （migrateLegacyEntriesが一覧との照合により順次チームを刻印する）。
+   */
   function repliedEntryMap() {
+    const team = currentTeam();
     const map = new Map();
     for (const e of store.load()) {
+      if (e.team && e.team !== team) continue;
       map.set(matchKey(e.recipient), e);
     }
     return map;
+  }
+
+  /**
+   * 後方互換マイグレーション: チーム情報の無い既存記録について、
+   * 現在のチームのメッセージ一覧に該当スレッドが見つかったら
+   * このチームの記録として刻印する。
+   */
+  function migrateLegacyEntries() {
+    const team = currentTeam();
+    if (!team) return;
+    const entries = store.load();
+    const legacy = entries.filter((e) => !e.team);
+    if (legacy.length === 0) return;
+
+    const keysInList = new Set();
+    for (const item of document.querySelectorAll(SELECTORS.listItem)) {
+      keysInList.add(nameOfItem(item));
+    }
+    let changed = false;
+    for (const e of legacy) {
+      if (keysInList.has(matchKey(e.recipient))) {
+        e.team = team;
+        changed = true;
+      }
+    }
+    if (changed) store.replaceAll(entries);
   }
 
   /** 一覧項目の宛先名の照合キー（自前バッジのテキストは除外） */
@@ -94,7 +133,11 @@
   /** 返答を1件記録する（同一スレッドへの再返答は時刻更新扱い） */
   function recordReply(recipient) {
     if (!recipient) return;
-    store.upsert({ key: matchKey(recipient), recipient: recipient }, "key");
+    const team = currentTeam();
+    store.upsert(
+      { key: team + "::" + matchKey(recipient), recipient: recipient, team: team },
+      "key"
+    );
     console.info("[Stock Plus] 返答を記録:", recipient);
     scheduleRefresh();
   }
@@ -360,6 +403,7 @@
     refreshTimer = setTimeout(() => {
       refreshTimer = null;
       if (!window.StockPlus.isCurrentInstance()) return;
+      migrateLegacyEntries();
       ensureFilterTab();
       refreshBadges();
       updateTabState();
