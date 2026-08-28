@@ -20,10 +20,22 @@
   background: #3b7ddd;
 }
 
+/* タブ行を1行に収める（inline-block由来の空白ギャップを除去し、折り返しを禁止） */
+.chatGroupsModal__tabBox {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  align-items: center;
+}
+.chatGroupsModal__tabBox__tab {
+  flex-shrink: 0;
+}
+
 /* タブ行に追加するフィルタリンク（太字・共通） */
 .stock-plus-filter-tab {
   font-weight: 700 !important;
   cursor: pointer;
+  padding-left: 6px !important;
+  padding-right: 6px !important;
 }
 .stock-plus-filter-tab.active {
   color: #2e9e5b !important;
