@@ -63,6 +63,8 @@
     {
       id: "replied",
       label: "返信済み",
+      // タブ行の幅が限られているため、タブ上はコンパクト表記にする
+      tabLabel: "✓",
       store: new window.StockPlus.TtlStore("repliedMessages"), // TTL 30日
       badgeText: "✓ 返答済み",
       badgeClass: "stock-plus-replied-badge",
@@ -71,6 +73,7 @@
     {
       id: "mentioned",
       label: "@me",
+      tabLabel: "@",
       store: new window.StockPlus.TtlStore("mentionedMessages"), // TTL 30日
       badgeText: "@me",
       badgeClass: "stock-plus-mentioned-badge",
@@ -283,7 +286,8 @@
         TAB_BASE_CLASS +
         " " +
         tracker.tabClass;
-      tab.textContent = tracker.label;
+      tab.textContent = tracker.tabLabel;
+      tab.title = `${tracker.label}で絞り込み（Stock Plus）`;
       tab.addEventListener("click", (ev) => {
         ev.preventDefault();
         ev.stopPropagation();
@@ -307,7 +311,7 @@
       tab.classList.toggle("active", activeTrackerId === tracker.id);
       const count = entryMapOf(tracker).size;
       tab.textContent =
-        count > 0 ? `${tracker.label}(${count})` : tracker.label;
+        count > 0 ? `${tracker.tabLabel}(${count})` : tracker.tabLabel;
     }
   }
 
