@@ -20,6 +20,13 @@
   background: #3b7ddd;
 }
 
+/* メッセージ一覧モーダルを横に広げ、全タブがフル表記でも1行に収まるようにする
+   （右端固定のため左方向に広がる。小さいウィンドウでは画面内に収める） */
+.chatGroupsModal {
+  width: 830px !important;
+  max-width: calc(100vw - 190px);
+}
+
 /* タブ行を1行に収める（inline-block由来の空白ギャップを除去し、折り返しを禁止。
    万一あふれた場合もクリップせず横スクロールできるようにする） */
 .chatGroupsModal__tabBox {
@@ -34,26 +41,21 @@
 }
 .chatGroupsModal__tabBox__tab {
   flex-shrink: 0;
+  /* リンク同士の間隔を少しだけ詰める（Stock標準は7px） */
+  padding-left: 5px !important;
+  padding-right: 5px !important;
 }
 
-/* タブ行に追加するフィルタリンク（コンパクト表記 ✓(N) / @(N)・太字） */
+/* タブ行に追加するフィルタリンク（太字） */
 .stock-plus-filter-tab {
   font-weight: 700 !important;
   cursor: pointer;
-  padding-left: 6px !important;
-  padding-right: 6px !important;
-}
-.stock-plus-replied-tab {
-  color: #2e9e5b !important;
-  opacity: 0.65;
-}
-.stock-plus-mentioned-tab {
-  color: #3b7ddd !important;
-  opacity: 0.65;
 }
 .stock-plus-filter-tab.active {
-  opacity: 1;
-  text-decoration: underline;
+  color: #2e9e5b !important;
+}
+.stock-plus-mentioned-tab.active {
+  color: #3b7ddd !important;
 }
 
 /* チャット詳細画面ヘッダーのピン留めボタン */
