@@ -54,7 +54,7 @@
       if (!el) continue;
       let text = "";
       for (const node of el.childNodes) {
-        if (node.nodeType === 1 && node.classList.contains("stock-plus-replied-badge")) continue;
+        if (node.nodeType === 1 && node.classList.contains("stock-plus-badge")) continue;
         text += node.textContent;
       }
       if (matchKey(text) === key) return item;

@@ -1,7 +1,7 @@
 /* Stock Plus 共通スタイル */
 
-/* 一覧の「✓返答済み」バッジ */
-.stock-plus-replied-badge {
+/* 一覧の宛先名に付けるバッジ（共通） */
+.stock-plus-badge {
   display: inline-block;
   margin-left: 6px;
   padding: 1px 6px;
@@ -10,18 +10,26 @@
   font-weight: 600;
   line-height: 1.5;
   color: #fff;
-  background: #2e9e5b;
   vertical-align: middle;
   white-space: nowrap;
 }
+.stock-plus-replied-badge {
+  background: #2e9e5b;
+}
+.stock-plus-mentioned-badge {
+  background: #3b7ddd;
+}
 
-/* タブ行に追加する「返信済み」フィルタリンク（太字） */
-.stock-plus-replied-tab {
+/* タブ行に追加するフィルタリンク（太字・共通） */
+.stock-plus-filter-tab {
   font-weight: 700 !important;
   cursor: pointer;
 }
-.stock-plus-replied-tab.active {
+.stock-plus-filter-tab.active {
   color: #2e9e5b !important;
+}
+.stock-plus-mentioned-tab.active {
+  color: #3b7ddd !important;
 }
 
 /* チャット詳細画面ヘッダーのピン留めボタン */
