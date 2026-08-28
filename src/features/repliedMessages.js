@@ -81,6 +81,11 @@
   // 名前ゆらぎを吸収する照合キー（core/util.js）
   const matchKey = window.StockPlus.matchKey;
 
+  /** 設定でONになっているトラッカーか（設定ID = トラッカーid） */
+  function isTrackerEnabled(tracker) {
+    return window.StockPlus.isFeatureEnabled(tracker.id);
+  }
+
   // 現在有効なフィルタ（トラッカーid or null）
   let activeTrackerId = null;
 
@@ -171,7 +176,7 @@
 
   /** トラッカーに1件記録する（同一スレッドの再記録は時刻更新扱い） */
   function record(tracker, recipient) {
-    if (!recipient) return;
+    if (!recipient || !isTrackerEnabled(tracker)) return;
     const team = currentTeam();
     tracker.store.upsert(
       { key: team + "::" + matchKey(recipient), recipient: recipient, team: team },
@@ -265,9 +270,16 @@
     if (!box) return;
 
     for (const tracker of TRACKERS) {
+      const existing = box.querySelector("." + tracker.tabClass);
+
+      // 設定OFFのトラッカーはタブを出さない（既存があれば撤去）
+      if (!isTrackerEnabled(tracker)) {
+        if (existing) existing.remove();
+        continue;
+      }
+
       // 別インスタンス（オーファン化した旧content script）が作ったタブは
       // クリックハンドラが死んでいるため、作り直す
-      const existing = box.querySelector("." + tracker.tabClass);
       if (existing) {
         if (existing.dataset.stockPlusInstance === window.StockPlus.instanceId) {
           continue;
@@ -453,7 +465,8 @@
     if (items.length === 0) return;
 
     for (const tracker of TRACKERS) {
-      const entryMap = entryMapOf(tracker);
+      // 設定OFFのトラッカーはバッジを空扱いにして撤去する
+      const entryMap = isTrackerEnabled(tracker) ? entryMapOf(tracker) : new Map();
       for (const item of items) {
         const nameEl =
           item.querySelector(SELECTORS.listItemName) ||
@@ -483,8 +496,17 @@
     refreshTimer = setTimeout(() => {
       refreshTimer = null;
       if (!window.StockPlus.isCurrentInstance()) return;
+      // 設定OFFのトラッカーでフィルタ中なら解除する
+      if (activeTracker() && !isTrackerEnabled(activeTracker())) {
+        activeTrackerId = null;
+      }
+      // トラッカーが1つでもONのときだけ、モーダル拡幅等のCSSを有効化する
+      document.documentElement.classList.toggle(
+        "stock-plus-trackers-on",
+        TRACKERS.some(isTrackerEnabled)
+      );
       migrateLegacyEntries();
-      detectMentionsInOpenChatrooms();
+      if (isTrackerEnabled(mentionedTracker)) detectMentionsInOpenChatrooms();
       ensureFilterTabs();
       refreshBadges();
       updateTabStates();
@@ -508,5 +530,6 @@
       initFilterTabs();
       initObserver();
     },
+    refresh: scheduleRefresh,
   });
 })();

@@ -47,4 +47,26 @@
       }
     }
   };
+
+  /**
+   * 機能ON/OFF設定。popupで変更され chrome.storage.sync に保存される。
+   * キーは設定ID、値がfalseのものだけOFF（未設定はON = デフォルトON）。
+   */
+  window.StockPlus.settings = {};
+  window.StockPlus.isFeatureEnabled = function (settingId) {
+    return window.StockPlus.settings[settingId] !== false;
+  };
+
+  /** 設定変更時に各featureへ再描画を促す（featureのrefresh()を呼ぶ） */
+  window.StockPlus.refreshAll = function () {
+    for (const f of features) {
+      if (typeof f.refresh === "function") {
+        try {
+          f.refresh();
+        } catch (e) {
+          console.error(`[Stock Plus] feature "${f.id}" refresh failed`, e);
+        }
+      }
+    }
+  };
 })();

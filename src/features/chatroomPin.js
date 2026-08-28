@@ -111,6 +111,11 @@
 
   /** 開いている各チャットウィンドウにピン留めボタンを挿入する */
   function ensurePinButtons() {
+    // 設定OFFなら既存ボタンを撤去して何もしない
+    if (!window.StockPlus.isFeatureEnabled("chatroom-pin")) {
+      document.querySelectorAll("." + BTN_CLASS).forEach((el) => el.remove());
+      return;
+    }
     for (const room of document.querySelectorAll(SELECTORS.chatroom)) {
       const nameBox = room.querySelector(SELECTORS.nameBox);
       if (!nameBox) continue;
@@ -166,5 +171,6 @@
       observer.observe(document.body, { childList: true, subtree: true });
       scheduleRefresh();
     },
+    refresh: scheduleRefresh,
   });
 })();

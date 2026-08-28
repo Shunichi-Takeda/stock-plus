@@ -41,6 +41,15 @@
   }
 
   function ensureFilterInput() {
+    // 設定OFFなら既存の入力欄を撤去し、絞り込みも解除する
+    if (!window.StockPlus.isFeatureEnabled("template-filter")) {
+      document.querySelectorAll("." + INPUT_CLASS).forEach((el) => el.remove());
+      document
+        .querySelectorAll(SELECTORS.row + "." + HIDDEN_CLASS)
+        .forEach((el) => el.classList.remove(HIDDEN_CLASS));
+      currentQuery = "";
+      return;
+    }
     const list = document.querySelector(SELECTORS.list);
     if (!list) {
       currentQuery = ""; // モーダルが閉じたら絞り込みをリセット
@@ -99,5 +108,6 @@
       observer.observe(document.body, { childList: true, subtree: true });
       scheduleRefresh();
     },
+    refresh: scheduleRefresh,
   });
 })();

@@ -20,9 +20,12 @@
   background: #3b7ddd;
 }
 
+/* ---- 以下のStock標準UIへの調整は、返信済み/@meのどちらかがONのときだけ
+        適用する（html.stock-plus-trackers-on はfeatureが付け外しする） ---- */
+
 /* メッセージ一覧モーダルを横に広げ、全タブがフル表記でも1行に収まるようにする
    （右端固定のため左方向に広がる。小さいウィンドウでは画面内に収める） */
-.chatGroupsModal {
+html.stock-plus-trackers-on .chatGroupsModal {
   /* 全タブが2桁件数でも@meまで1行に収まる最小幅（実測452px+余白） */
   width: 490px !important;
   max-width: calc(100vw - 190px);
@@ -30,17 +33,17 @@
 
 /* タブ行を1行に収める（inline-block由来の空白ギャップを除去し、折り返しを禁止。
    万一あふれた場合もクリップせず横スクロールできるようにする） */
-.chatGroupsModal__tabBox {
+html.stock-plus-trackers-on .chatGroupsModal__tabBox {
   display: flex !important;
   flex-wrap: nowrap !important;
   align-items: center;
   overflow-x: auto;
   scrollbar-width: none;
 }
-.chatGroupsModal__tabBox::-webkit-scrollbar {
+html.stock-plus-trackers-on .chatGroupsModal__tabBox::-webkit-scrollbar {
   display: none;
 }
-.chatGroupsModal__tabBox__tab {
+html.stock-plus-trackers-on .chatGroupsModal__tabBox__tab {
   flex-shrink: 0;
   /* リンク同士の間隔を少しだけ詰める（Stock標準は7px） */
   padding-left: 5px !important;
