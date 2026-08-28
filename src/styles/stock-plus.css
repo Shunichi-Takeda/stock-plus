@@ -23,7 +23,7 @@
 /* メッセージ一覧モーダルを横に広げ、全タブがフル表記でも1行に収まるようにする
    （右端固定のため左方向に広がる。小さいウィンドウでは画面内に収める） */
 .chatGroupsModal {
-  width: 830px !important;
+  width: 600px !important;
   max-width: calc(100vw - 190px);
 }
 
@@ -59,6 +59,8 @@
 }
 
 /* チャット詳細画面ヘッダーのピン留めボタン */
+/* 一覧側のピン留め（.chatGroupListItem__tackBtn）と同じ配色:
+   非アクティブ #555 / アクティブ（ピン中）#387ef5 */
 .stock-plus-pin-btn {
   display: inline-flex;
   align-items: center;
@@ -70,16 +72,15 @@
   border: none;
   border-radius: 4px;
   background: none;
-  color: #b0b0b0;
+  color: #555;
   cursor: pointer;
   vertical-align: middle;
 }
 .stock-plus-pin-btn:hover {
-  color: #666;
   background: rgba(0, 0, 0, 0.05);
 }
 .stock-plus-pin-btn.active {
-  color: #2e9e5b;
+  color: #387ef5;
 }
 
 /* テンプレート一覧の絞り込み入力欄 */
