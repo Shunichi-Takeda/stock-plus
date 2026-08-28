@@ -48,6 +48,22 @@
   color: #2e9e5b;
 }
 
+/* テンプレート一覧の絞り込み入力欄 */
+.stock-plus-template-filter {
+  margin-left: 10px;
+  padding: 2px 8px;
+  width: 150px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: normal;
+  vertical-align: middle;
+}
+.stock-plus-template-filter:focus {
+  outline: none;
+  border-color: #2e9e5b;
+}
+
 /* フィルタON時に隠す一覧項目 */
 .stock-plus-hidden {
   display: none !important;
