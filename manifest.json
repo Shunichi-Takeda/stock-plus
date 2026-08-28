@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Stock Plus",
-  "version": "0.10.5",
+  "version": "0.10.6",
   "description": "Stock（stock-app.jp）を拡張するツールキット。返信済みトラッキング、チャット画面のピン留め等。",
   "icons": {
     "16": "icons/icon16.png",

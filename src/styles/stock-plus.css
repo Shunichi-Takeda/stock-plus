@@ -80,6 +80,10 @@
 .stock-plus-pin-btn:hover {
   background: rgba(0, 0, 0, 0.05);
 }
+/* 一覧側と同じくピンを45度傾ける（回転はアイコンのみ。ホバー背景は回さない） */
+.stock-plus-pin-btn svg {
+  transform: rotate(45deg);
+}
 .stock-plus-pin-btn.active {
   color: #387ef5;
 }
