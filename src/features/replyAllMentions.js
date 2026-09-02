@@ -29,21 +29,51 @@
 
   const SETTING_ID = "reply-all-mentions";
 
-  /** 元メッセージから他人宛メンションを収集する（"@名前さん" 形式、重複除去） */
+  const OPEN_BRACKETS = "（(「『【[｛{＜<";
+  const CLOSE_BRACKETS = "）)」』】]｝}＞>";
+
+  /** メンション要素の直前テキストの末尾が開きかっこならそれを返す */
+  function bracketBefore(el) {
+    const prev = el.previousSibling;
+    const text = prev && prev.nodeType === 3 ? prev.textContent : "";
+    const ch = text.slice(-1);
+    return OPEN_BRACKETS.includes(ch) ? ch : "";
+  }
+
+  /** メンション要素の直後テキストの先頭が閉じかっこならそれを返す（":）"のような形も許容） */
+  function bracketAfter(el) {
+    const next = el.nextSibling;
+    const text = next && next.nodeType === 3 ? next.textContent : "";
+    const m = text.match(/^[:：]?(.)/);
+    const ch = m ? m[1] : "";
+    return CLOSE_BRACKETS.includes(ch) ? ch : "";
+  }
+
+  /**
+   * 元メッセージから他人宛メンションを収集する。
+   * 「（@xxx」「@xxx）」「（@xxx）」のように前後にかっこが付いている場合は
+   * そのまま引き継ぐ。戻り値は {name, text}（name=重複判定用、text=挿入文字列）。
+   */
   function collectMentions(messageEl) {
-    const names = [];
+    const seen = new Set();
+    const results = [];
     for (const m of messageEl.querySelectorAll(SELECTORS.mention)) {
       // 末尾の ":"（半角/全角）は表示用なので除いて名前だけにする
-      const t = (m.textContent || "").trim().replace(/[:：]\s*$/, "");
-      if (t.startsWith("@") && !names.includes(t)) names.push(t);
+      const name = (m.textContent || "").trim().replace(/[:：]\s*$/, "");
+      if (!name.startsWith("@") || seen.has(name)) continue;
+      seen.add(name);
+      const text = bracketBefore(m) + name + bracketAfter(m) + ": ";
+      results.push({ name: name, text: text });
     }
-    return names;
+    return results;
   }
 
   /** 入力欄へメンションを追記する（React管理のtextareaに対応） */
-  function appendMentions(textarea, names) {
+  function appendMentions(textarea, mentions) {
     let val = textarea.value;
-    const additions = names.filter((n) => !val.includes(n)).map((n) => n + ": ");
+    const additions = mentions
+      .filter((m) => !val.includes(m.name))
+      .map((m) => m.text);
     if (additions.length === 0) return;
     if (val && !/\s$/.test(val)) val += " ";
     const setter = Object.getOwnPropertyDescriptor(
@@ -55,12 +85,12 @@
   }
 
   function onReplyClick(msg, room) {
-    const names = collectMentions(msg);
-    if (names.length === 0) return;
+    const mentions = collectMentions(msg);
+    if (mentions.length === 0) return;
     // Stockが "@送信者さん: " を挿入し終えるのを待ってから追記する
     setTimeout(() => {
       const textarea = room.querySelector("textarea");
-      if (textarea) appendMentions(textarea, names);
+      if (textarea) appendMentions(textarea, mentions);
     }, 600);
   }
 
