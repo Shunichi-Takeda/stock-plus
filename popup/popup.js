@@ -27,6 +27,11 @@ const FEATURES = [
     name: "テンプレート一覧の絞り込み",
     description: "テンプレート選択時に名前で絞り込むテキストフィールドを追加",
   },
+  {
+    id: "reply-all-mentions",
+    name: "全員に返信（メンション引き継ぎ）",
+    description: "返信時に元メッセージの全メンションを入力欄へ追記（自分宛は除外）",
+  },
 ];
 
 const list = document.getElementById("feature-list");
