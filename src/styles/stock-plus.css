@@ -139,3 +139,87 @@ html.stock-plus-trackers-on .chatGroupsModal__tabBox__tab {
 .stock-plus-filter-note-row:hover {
   background: #f2f8f4;
 }
+
+/* ---- お気に入りの記事 ---- */
+
+/* 記事ページ右上 ⚙ の左隣の ★ ボタン（⚙ と同じ 32px・#999） */
+.stock-plus-fav-area {
+  display: flex;
+  align-items: center;
+}
+.stock-plus-fav-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: #999;
+  cursor: pointer;
+}
+.stock-plus-fav-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+.stock-plus-fav-btn.active {
+  color: #f5b301;
+}
+
+/* 仮想フォルダ表示中は、Stock本来の見出し・一覧を隠して自前の一覧に差し替える */
+html.stock-plus-fav-mode .stocksContent > .stocksHeader,
+html.stock-plus-fav-mode .stocksContent > .stockList {
+  display: none !important;
+}
+.stock-plus-fav-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.stock-plus-fav-panel .stock-plus-fav-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+.stock-plus-fav-panel .stock-plus-fav-list > ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.stock-plus-fav-panel .stockListItem {
+  position: relative;
+}
+.stock-plus-fav-panel .stockListItem__titleBox {
+  padding-right: 28px; /* 右上の★と重ならないように */
+}
+.stock-plus-fav-item-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 26px;
+  height: 26px;
+}
+.stock-plus-fav-meta {
+  margin-top: 4px;
+  padding: 0 13px; /* Stockのタイトル・フォルダ名と左端を揃える */
+  font-size: 11px;
+  color: #999;
+}
+.stock-plus-fav-empty {
+  margin: 16px 12px;
+  font-size: 12px;
+  color: #888;
+}
+
+/* 左メニュー: 仮想フォルダ表示中は「お気に入りの記事」を選択状態に、「新着ノート」は非選択の見た目に */
+.groupsBody > a.stock-plus-fav-lnk {
+  font-weight: 400;
+}
+.groupsBody > a.stock-plus-fav-lnk.isSelected {
+  background-color: rgb(93, 90, 121) !important;
+}
+html.stock-plus-fav-mode .groupsBody > a.allStocksLnk.isSelected:not(.stock-plus-fav-lnk) {
+  background-color: transparent !important;
+}

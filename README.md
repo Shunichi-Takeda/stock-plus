@@ -20,6 +20,10 @@ Stock本体には無い便利機能を、ページに後付けで追加します
   - ノート作成時の「テンプレート一覧」に、テンプレート名で絞り込むテキストフィールドを追加
 - **全員に返信（メンション引き継ぎ）**
   - 「返信」ボタン押下時に、元メッセージ内の全メンションを入力欄へ追記（自分宛は除外。Gmailの「全員に返信」相当）
+- **お気に入りの記事**
+  - 記事右上の「設定（⚙）」の左隣の ★ で、記事をお気に入り登録／解除
+  - 左メニューの「新着ノート」の下に「**お気に入りの記事**」を追加。選ぶと記事一覧がお気に入り登録した記事の一覧（フォルダ名「お気に入りの記事」）に切り替わります
+  - お気に入りはチームごとにブラウザ側（Stockのページ）へ保存され、期限なしで残ります
 - **機能ごとのON/OFF設定**
   - ツールバーのStock Plusアイコンをクリックすると設定ダイアログが開き、各機能を個別にON/OFFできます（デフォルトはすべてON。変更は開いているStockタブへ即時反映）
 
@@ -86,14 +90,21 @@ git clone git@github.com:Shunichi-Takeda/stock-plus.git
 
 ```
 stock-plus/
-├── manifest.json              # Manifest V3
+├── manifest.json                  # Manifest V3
+├── icons/                         # 拡張アイコン（16/48/128px）
+├── popup/                         # 機能ON/OFF設定ダイアログ
 └── src/
-    ├── content.js             # エントリポイント（全featureを起動）
+    ├── content.js                 # エントリポイント（設定を読み込んで全featureを起動）
     ├── core/
-    │   ├── storage.js         # TTL付きlocalStorageラッパー（既定30日）
-    │   └── featureManager.js  # feature登録・起動、インスタンスガード
+    │   ├── util.js                # 名前照合キー等の共通処理
+    │   ├── storage.js             # TTL付きlocalStorageラッパー（既定30日）
+    │   └── featureManager.js      # feature登録・起動、インスタンスガード、ON/OFF判定
     ├── features/
-    │   └── repliedMessages.js # 返信済みトラッキング機能
+    │   ├── repliedMessages.js     # 返信済み / @me フィルタ
+    │   ├── chatroomPin.js         # チャット画面のピン留めボタン
+    │   ├── templateFilter.js      # テンプレート一覧の絞り込み
+    │   ├── replyAllMentions.js    # 全員に返信（メンション引き継ぎ）
+    │   └── favoriteStocks.js      # お気に入りの記事
     └── styles/
         └── stock-plus.css
 ```

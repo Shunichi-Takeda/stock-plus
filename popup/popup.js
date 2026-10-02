@@ -32,6 +32,11 @@ const FEATURES = [
     name: "全員に返信（メンション引き継ぎ）",
     description: "返信時に元メッセージの全メンションを入力欄へ追記（自分宛は除外）",
   },
+  {
+    id: "favorite-stocks",
+    name: "お気に入りの記事",
+    description: "記事を ★ でお気に入り登録し、左メニューの「お気に入りの記事」から一覧表示",
+  },
 ];
 
 const list = document.getElementById("feature-list");
