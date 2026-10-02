@@ -9,6 +9,8 @@
  *  - 自分宛メンション（.mentionToMe）は除外する
  *  - 送信者や既に入力欄にあるメンションと重複するものはスキップ
  *  - 挿入形式はStockの返信ボタンと同じプレーンテキスト "@名前さん: "
+ *  - メンション前後のかっこは、間に空白（半角/全角）があっても引き継ぐ。
+ *    「（@A: @B: ）」のように複数メンションを括るかっこも、その形のまま再現する
  */
 (function () {
   "use strict";
@@ -22,8 +24,10 @@
     toolBoxButtons: ".chatListItemToolBox button, .chatListItemToolBox a",
     // 「返信」ボタンのラベル（完全一致）
     replyButtonText: "返信",
-    // 他人宛メンション（自分宛は .mentionToMe で別クラス）
+    // 他人宛メンション
     mention: ".mention",
+    // 自分宛メンション（挿入はしないが、かっこの括りの判定には使う）
+    mentionToMe: ".mentionToMe",
   };
   // ----------------------------------------------------------------------
 
@@ -31,49 +35,122 @@
 
   const OPEN_BRACKETS = "（(「『【[｛{＜<";
   const CLOSE_BRACKETS = "）)」』】]｝}＞>";
+  // かっことメンションの間に挟まりうる空白（半角/全角/NBSP/タブ）
+  const SPACE_RE = /[ \t\u3000\u00a0]/;
 
-  /** メンション要素の直前テキストの末尾が開きかっこならそれを返す */
+  /**
+   * メンション要素から指定方向へ兄弟ノードをたどり、空白を読み飛ばした
+   * 最初の文字を返す。改行（<br>）や他の要素に当たったら打ち切る
+   * （別の行のかっこを誤って拾わないため）。
+   * after方向では、名前直後の ":"（半角/全角）も読み飛ばす。
+   */
+  function firstCharBeside(el, direction) {
+    const forward = direction === "after";
+    let node = forward ? el.nextSibling : el.previousSibling;
+    let skippedColon = false;
+    while (node) {
+      if (node.nodeType !== 3) return ""; // <br>・別メンション等の要素で打ち切り
+      const text = node.textContent;
+      const chars = forward ? Array.from(text) : Array.from(text).reverse();
+      for (const ch of chars) {
+        if (SPACE_RE.test(ch)) continue;
+        if (forward && !skippedColon && (ch === ":" || ch === "：")) {
+          skippedColon = true;
+          continue;
+        }
+        return ch;
+      }
+      node = forward ? node.nextSibling : node.previousSibling;
+    }
+    return "";
+  }
+
   function bracketBefore(el) {
-    const prev = el.previousSibling;
-    const text = prev && prev.nodeType === 3 ? prev.textContent : "";
-    const ch = text.slice(-1);
+    const ch = firstCharBeside(el, "before");
     return OPEN_BRACKETS.includes(ch) ? ch : "";
   }
 
-  /** メンション要素の直後テキストの先頭が閉じかっこならそれを返す（":）"のような形も許容） */
   function bracketAfter(el) {
-    const next = el.nextSibling;
-    const text = next && next.nodeType === 3 ? next.textContent : "";
-    const m = text.match(/^[:：]?(.)/);
-    const ch = m ? m[1] : "";
+    const ch = firstCharBeside(el, "after");
     return CLOSE_BRACKETS.includes(ch) ? ch : "";
   }
 
   /**
-   * 元メッセージから他人宛メンションを収集する。
-   * 「（@xxx」「@xxx）」「（@xxx）」のように前後にかっこが付いている場合は
-   * そのまま引き継ぐ。戻り値は {name, text}（name=重複判定用、text=挿入文字列）。
+   * 元メッセージのメンションを本文の出現順にトークン化する。
+   * 自分宛（.mentionToMe）や重複も、かっこの受け渡しのためにトークンとして残し
+   * excluded=true にしておく（「（@自分: @Bさん: ）」のような括りを崩さないため）。
    */
   function collectMentions(messageEl) {
     const seen = new Set();
-    const results = [];
-    for (const m of messageEl.querySelectorAll(SELECTORS.mention)) {
+    const tokens = [];
+    for (const m of messageEl.querySelectorAll(SELECTORS.mention + ", " + SELECTORS.mentionToMe)) {
       // 末尾の ":"（半角/全角）は表示用なので除いて名前だけにする
       const name = (m.textContent || "").trim().replace(/[:：]\s*$/, "");
-      if (!name.startsWith("@") || seen.has(name)) continue;
+      if (!name.startsWith("@")) continue;
+      const isMe = m.matches(SELECTORS.mentionToMe);
+      tokens.push({
+        name: name,
+        open: bracketBefore(m),
+        close: bracketAfter(m),
+        excluded: isMe || seen.has(name),
+      });
       seen.add(name);
-      const text = bracketBefore(m) + name + bracketAfter(m) + ": ";
-      results.push({ name: name, text: text });
     }
-    return results;
+    return tokens;
+  }
+
+  /**
+   * 挿入しないトークンが持っていたかっこを隣のトークンへ受け渡し、
+   * 最後に対応の取れないかっこを取り除く。
+   */
+  function resolveBrackets(tokens) {
+    const included = [];
+    let carryOpen = "";
+    for (const t of tokens) {
+      if (t.excluded) {
+        // 開きかっこは次に挿入するトークンへ、閉じかっこは直前に挿入したトークンへ
+        if (t.open && !carryOpen) carryOpen = t.open;
+        if (t.close && included.length > 0 && !included[included.length - 1].close) {
+          included[included.length - 1].close = t.close;
+        }
+        continue;
+      }
+      const item = { name: t.name, open: t.open, close: t.close };
+      if (!item.open && carryOpen) item.open = carryOpen;
+      carryOpen = "";
+      included.push(item);
+    }
+
+    // かっこの対応チェック（開き→閉じの順で種類が一致するものだけ残す）
+    const stack = [];
+    included.forEach((item, idx) => {
+      if (item.open) stack.push({ idx: idx, ch: item.open });
+      if (item.close) {
+        const pair = OPEN_BRACKETS[CLOSE_BRACKETS.indexOf(item.close)];
+        if (stack.length > 0 && stack[stack.length - 1].ch === pair) {
+          stack.pop();
+        } else {
+          item.close = "";
+        }
+      }
+    });
+    for (const s of stack) included[s.idx].open = "";
+    return included;
+  }
+
+  /** 挿入文字列。Stockのメンション記法 "@名前: " を崩さないよう、閉じかっこは ": " の後ろに置く */
+  function formatMention(item) {
+    return item.open + item.name + ": " + (item.close ? item.close + " " : "");
   }
 
   /** 入力欄へメンションを追記する（React管理のtextareaに対応） */
-  function appendMentions(textarea, mentions) {
+  function appendMentions(textarea, tokens) {
     let val = textarea.value;
-    const additions = mentions
-      .filter((m) => !val.includes(m.name))
-      .map((m) => m.text);
+    // 既に入力欄にある（=Stockが挿入した送信者など）メンションは挿入しない
+    const marked = tokens.map((t) =>
+      Object.assign({}, t, { excluded: t.excluded || val.includes(t.name) })
+    );
+    const additions = resolveBrackets(marked).map(formatMention);
     if (additions.length === 0) return;
     if (val && !/\s$/.test(val)) val += " ";
     const setter = Object.getOwnPropertyDescriptor(
@@ -86,7 +163,7 @@
 
   function onReplyClick(msg, room) {
     const mentions = collectMentions(msg);
-    if (mentions.length === 0) return;
+    if (!mentions.some((t) => !t.excluded)) return;
     // Stockが "@送信者さん: " を挿入し終えるのを待ってから追記する
     setTimeout(() => {
       const textarea = room.querySelector("textarea");
