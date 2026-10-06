@@ -30,7 +30,7 @@ const FEATURES = [
   {
     id: "reply-all-mentions",
     name: "全員に返信（メンション引き継ぎ）",
-    description: "返信時に元メッセージの全メンションを入力欄へ追記（自分宛は除外）",
+    description: "返信時に元メッセージの全メンションを入力欄へ追記（自分個人宛と@Allは除外）",
   },
   {
     id: "favorite-stocks",

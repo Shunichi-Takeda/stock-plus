@@ -6,7 +6,7 @@
  * 含まれる**全メンション**（かっこ付き・別行のメンションも含む）を入力欄へ
  * 追記する（Gmailの「全員に返信」相当）。
  *
- *  - 自分宛メンション（.mentionToMe）は除外する
+ *  - 自分個人宛のメンションと @All は除外する（自分が所属するチーム宛は含める）
  *  - 送信者や既に入力欄にあるメンションと重複するものはスキップ
  *  - 挿入形式はStockの返信ボタンと同じプレーンテキスト "@名前さん: "
  *  - メンション前後のかっこは、間に空白（半角/全角）があっても引き継ぐ。
@@ -77,7 +77,7 @@
 
   /**
    * 元メッセージのメンションを本文の出現順にトークン化する。
-   * 自分宛（.mentionToMe）や重複も、かっこの受け渡しのためにトークンとして残し
+   * 自分個人宛・@All・重複も、かっこの受け渡しのためにトークンとして残し
    * excluded=true にしておく（「（@自分: @Bさん: ）」のような括りを崩さないため）。
    */
   function collectMentions(messageEl) {
@@ -87,12 +87,17 @@
       // 末尾の ":"（半角/全角）は表示用なので除いて名前だけにする
       const name = (m.textContent || "").trim().replace(/[:：]\s*$/, "");
       if (!name.startsWith("@")) continue;
-      const isMe = m.matches(SELECTORS.mentionToMe);
+      // Stockは自分が所属するチームへのメンション（@開発チーム 等）も
+      // mentionToMe にするため、クラスだけでは「自分個人宛」と区別できない。
+      // 個人宛には必ず「さん」が付き、チーム宛には付かないことで見分ける。
+      const isSelf = m.matches(SELECTORS.mentionToMe) && /さん$/.test(name);
+      // @All は全員宛のため、返信で引き継ぐと通知範囲が広すぎるので除外する
+      const isAll = name === "@All";
       tokens.push({
         name: name,
         open: bracketBefore(m),
         close: bracketAfter(m),
-        excluded: isMe || seen.has(name),
+        excluded: isSelf || isAll || seen.has(name),
       });
       seen.add(name);
     }
