@@ -37,6 +37,11 @@ const FEATURES = [
     name: "お気に入りの記事",
     description: "記事を ★ でお気に入り登録し、左メニューの「お気に入りの記事」から一覧表示",
   },
+  {
+    id: "send-confirm",
+    name: "大人数チャットの送信確認",
+    description: "10名以上のチャットでメンション無し／@Allのとき、送信ボタンを「確認」→「送信」の二段構えに",
+  },
 ];
 
 const list = document.getElementById("feature-list");

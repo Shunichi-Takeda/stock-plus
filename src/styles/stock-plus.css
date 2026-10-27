@@ -223,3 +223,20 @@ html.stock-plus-fav-mode .stocksContent > .stockList {
 html.stock-plus-fav-mode .groupsBody > a.allStocksLnk.isSelected:not(.stock-plus-fav-lnk) {
   background-color: transparent !important;
 }
+
+/* ---- 大人数チャットの送信確認 ---- */
+
+/* 「送信」ボタンを赤い「確認」に差し替える。React管理のテキストノードは
+   触らず、font-size:0 で隠して ::after で表示する */
+.chatroom__toolBar__sendBtn.stock-plus-send-confirm {
+  background-color: #d9534f !important;
+  border-color: #d9534f !important;
+  font-size: 0 !important;
+}
+.chatroom__toolBar__sendBtn.stock-plus-send-confirm::after {
+  content: "確認";
+  font-size: 14px;
+}
+.chatroom__toolBar__sendBtn.stock-plus-send-confirm:hover {
+  background-color: #c9302c !important;
+}
