@@ -226,16 +226,16 @@ html.stock-plus-fav-mode .groupsBody > a.allStocksLnk.isSelected:not(.stock-plus
 
 /* ---- 大人数チャットの送信確認 ---- */
 
-/* 「送信」ボタンを赤い「確認」に差し替える。React管理のテキストノードは
+/* 「送信」ボタン（チャット欄・アップロードモーダル共通）を赤い「確認」に差し替える。React管理のテキストノードは
    触らず、元の文字を透明にしてボタンの寸法・行の高さをそのまま保ち、
    ::after の「確認」をボタン全体の中央に重ねる（文字位置が元と揃う） */
-.chatroom__toolBar__sendBtn.stock-plus-send-confirm {
+.stock-plus-send-confirm {
   position: relative;
   background-color: #d9534f !important;
   border-color: #d9534f !important;
   color: transparent !important;
 }
-.chatroom__toolBar__sendBtn.stock-plus-send-confirm::after {
+.stock-plus-send-confirm::after {
   content: "確認";
   position: absolute;
   inset: 0;
@@ -245,7 +245,7 @@ html.stock-plus-fav-mode .groupsBody > a.allStocksLnk.isSelected:not(.stock-plus
   color: #fff;
   font-size: 14px;
 }
-.chatroom__toolBar__sendBtn.stock-plus-send-confirm:hover {
+.stock-plus-send-confirm:hover {
   background-color: #c9302c !important;
 }
 
@@ -265,7 +265,7 @@ html.stock-plus-fav-mode .groupsBody > a.allStocksLnk.isSelected:not(.stock-plus
     box-shadow: 0 0 0 16px rgba(56, 126, 245, 0);
   }
 }
-.chatroom__toolBar__sendBtn.stock-plus-send-armed {
+.stock-plus-send-armed {
   animation: stock-plus-send-armed 0.7s ease-out;
   transition: background-color 0.45s ease-in-out, border-color 0.45s ease-in-out !important;
   position: relative;
