@@ -40,13 +40,15 @@ const FEATURES = [
   {
     id: "send-confirm",
     name: "大人数チャットの送信確認",
-    description: "10名以上のチャットでメンション無し／@Allのとき、送信ボタンを「確認」→「送信」の二段構えに",
+    description: "参加者がしきい値以上のチャットでメンション無し／@Allのとき、送信ボタンを「確認」→「送信」の二段構えに",
+    // 数値オプション（featureOptions に保存）
+    option: { key: "sendConfirmThreshold", label: "しきい値", unit: "名以上", default: 10, min: 1, max: 999 },
   },
 ];
 
 const list = document.getElementById("feature-list");
 
-chrome.storage.sync.get({ featureSettings: {} }, ({ featureSettings }) => {
+chrome.storage.sync.get({ featureSettings: {}, featureOptions: {} }, ({ featureSettings, featureOptions }) => {
   for (const feature of FEATURES) {
     const li = document.createElement("li");
 
@@ -77,6 +79,42 @@ chrome.storage.sync.get({ featureSettings: {} }, ({ featureSettings }) => {
     label.appendChild(checkbox);
     label.appendChild(body);
     li.appendChild(label);
+
+    // 数値オプション（ON/OFFの下に「しきい値: [10] 名以上」の形で表示）
+    if (feature.option) {
+      const opt = feature.option;
+      const row = document.createElement("div");
+      row.className = "feature-option";
+      const optLabel = document.createElement("span");
+      optLabel.textContent = opt.label + ":";
+      const input = document.createElement("input");
+      input.type = "number";
+      input.min = String(opt.min);
+      input.max = String(opt.max);
+      input.value = String(featureOptions[opt.key] ?? opt.default);
+      input.disabled = !checkbox.checked;
+      const unit = document.createElement("span");
+      unit.textContent = opt.unit;
+      row.appendChild(optLabel);
+      row.appendChild(input);
+      row.appendChild(unit);
+      li.appendChild(row);
+
+      const save = () => {
+        let v = parseInt(input.value, 10);
+        if (!Number.isFinite(v)) v = opt.default;
+        v = Math.min(opt.max, Math.max(opt.min, v));
+        input.value = String(v);
+        chrome.storage.sync.get({ featureOptions: {} }, (res) => {
+          const next = res.featureOptions || {};
+          next[opt.key] = v;
+          chrome.storage.sync.set({ featureOptions: next });
+        });
+      };
+      input.addEventListener("change", save);
+      input.addEventListener("blur", save);
+      checkbox.addEventListener("change", () => { input.disabled = !checkbox.checked; });
+    }
     list.appendChild(li);
   }
 });

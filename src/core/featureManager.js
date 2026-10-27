@@ -57,6 +57,16 @@
     return window.StockPlus.settings[settingId] !== false;
   };
 
+  /**
+   * 機能ごとの数値・文字列オプション（例: 送信確認のしきい値）。
+   * popupで変更され chrome.storage.sync の featureOptions に保存される。
+   */
+  window.StockPlus.options = {};
+  window.StockPlus.getOption = function (name, defaultValue) {
+    const v = window.StockPlus.options[name];
+    return v === undefined || v === null || v === "" ? defaultValue : v;
+  };
+
   /** 設定変更時に各featureへ再描画を促す（featureのrefresh()を呼ぶ） */
   window.StockPlus.refreshAll = function () {
     for (const f of features) {

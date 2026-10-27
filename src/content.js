@@ -11,14 +11,21 @@
   }
 
   try {
-    chrome.storage.sync.get({ featureSettings: {} }, (res) => {
+    chrome.storage.sync.get({ featureSettings: {}, featureOptions: {} }, (res) => {
       window.StockPlus.settings = res.featureSettings || {};
+      window.StockPlus.options = res.featureOptions || {};
       start();
 
       // popupでの設定変更を即時反映する
       chrome.storage.onChanged.addListener((changes, area) => {
-        if (area === "sync" && changes.featureSettings) {
+        if (area !== "sync") return;
+        if (changes.featureSettings) {
           window.StockPlus.settings = changes.featureSettings.newValue || {};
+        }
+        if (changes.featureOptions) {
+          window.StockPlus.options = changes.featureOptions.newValue || {};
+        }
+        if (changes.featureSettings || changes.featureOptions) {
           window.StockPlus.refreshAll();
         }
       });

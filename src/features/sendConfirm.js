@@ -6,7 +6,9 @@
  * 「確認」を押すと通常の「送信」ボタンに戻り（確認済み状態）、もう一度押すと
  * 普通に送信される。メンション無しや @All で大人数へ誤って一斉送信するのを防ぐ。
  *
- *  - Enter / Cmd+Enter / Ctrl+Enter での送信も同様に、1回目は確認扱いにする
+ *  - キーボード送信も同様に1回目は確認扱いにする。送信キー（Enter / Shift+Enter /
+ *    Ctrl+Enter）はStockの設定で変わるため、送信ボタンのツールチップから判定する
+ *  - しきい値（参加人数）は設定画面で変更できる（デフォルト10名）
  *  - 送信が完了して入力欄が空になる、または条件を満たさなくなったら確認済み状態を解除
  *  - 10名未満のチャットや、個人宛メンションがある場合は何もしない
  */
@@ -20,12 +22,23 @@
     memberCount: ".chatroom__membersBox__count",
     sendButton: ".chatroom__toolBar__sendBtn",
     composer: "textarea",
+    // 送信ボタンにホバーすると出るツールチップ（「Shift + Enterで送信」等）
+    sendTooltip: ".SendButtonTooltip",
   };
   // ----------------------------------------------------------------------
 
   const SETTING_ID = "send-confirm";
-  const MIN_MEMBERS = 10;
+  const OPTION_THRESHOLD = "sendConfirmThreshold";
+  const DEFAULT_MIN_MEMBERS = 10;
+
+  /** 確認を要する参加人数のしきい値（設定画面で変更可能。デフォルト10名） */
+  function minMembers() {
+    const n = parseInt(window.StockPlus.getOption(OPTION_THRESHOLD, DEFAULT_MIN_MEMBERS), 10);
+    return Number.isFinite(n) && n >= 1 ? n : DEFAULT_MIN_MEMBERS;
+  }
   const CONFIRM_CLASS = "stock-plus-send-confirm";
+  // 「確認」→「送信」に切り替わった瞬間のエフェクト用（アニメーション終了で外す）
+  const ARMED_ANIM_CLASS = "stock-plus-send-armed";
   // 「確認」を押して送信可能になった状態（送信するまで保持）
   const armed = new WeakSet();
 
@@ -37,7 +50,7 @@
 
   /** このチャットの入力内容が「確認」を要する状態か */
   function needsConfirm(room) {
-    if (memberCount(room) < MIN_MEMBERS) return false;
+    if (memberCount(room) < minMembers()) return false;
     const composer = room.querySelector(SELECTORS.composer);
     const text = composer ? composer.value : "";
     if (!text.trim()) return false;
@@ -57,7 +70,7 @@
     const showConfirm = needsConfirm(room) && !armed.has(room);
     btn.classList.toggle(CONFIRM_CLASS, showConfirm);
     const title = showConfirm
-      ? "10名以上のチャットにメンション無し（または@All）で送信しようとしています。もう一度押すと送信ボタンに戻ります（Stock Plus）"
+      ? `${minMembers()}名以上のチャットにメンション無し（または@All）で送信しようとしています。もう一度押すと送信ボタンに戻ります（Stock Plus）`
       : "";
     if (btn.title !== title) btn.title = title;
   }
@@ -75,6 +88,17 @@
       });
   }
 
+  /** 「送信」に切り替わったことが分かるよう、ボタンを一瞬ふくらませて光らせる */
+  function playArmedEffect(btn) {
+    if (!btn) return;
+    btn.classList.remove(ARMED_ANIM_CLASS);
+    void btn.offsetWidth; // 連続クリック時にもアニメーションを最初から再生させる
+    btn.classList.add(ARMED_ANIM_CLASS);
+    const done = () => btn.classList.remove(ARMED_ANIM_CLASS);
+    btn.addEventListener("animationend", done, { once: true });
+    setTimeout(done, 1000); // animationendが来ない場合の保険
+  }
+
   /** 送信操作を横取りして、1回目は「確認」として扱う。横取りしたらtrue */
   function interceptIfNeeded(room, ev) {
     if (!needsConfirm(room) || armed.has(room)) return false;
@@ -82,7 +106,53 @@
     ev.stopImmediatePropagation();
     armed.add(room);
     refreshRoom(room);
+    playArmedEffect(room.querySelector(SELECTORS.sendButton));
     return true;
+  }
+
+  // ---- 送信キーの判定 ------------------------------------------------------
+  // Stockは設定で送信キーを変えられる（Enter / Shift+Enter / Ctrl(⌘)+Enter）。
+  // 設定値はDOMに無いが、送信ボタンのツールチップ「〜で送信」に現れるので、
+  // 最初にチャットが開いたときに一度だけホバーを模擬して読み取る。
+  let sendKeyMode = null; // "enter" | "shift" | "mod"
+
+  function parseSendKeyMode(text) {
+    if (!text || !/Enter/i.test(text)) return null;
+    if (/Shift/i.test(text)) return "shift";
+    if (/Ctrl|Cmd|Command|⌘|Control/i.test(text)) return "mod";
+    return "enter";
+  }
+
+  let detecting = false;
+  function detectSendKeyMode(room) {
+    if (sendKeyMode || detecting) return;
+    const btn = room.querySelector(SELECTORS.sendButton);
+    if (!btn) return;
+    detecting = true;
+    btn.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    btn.dispatchEvent(new MouseEvent("mouseenter", { bubbles: true }));
+    setTimeout(() => {
+      const tip = document.querySelector(SELECTORS.sendTooltip);
+      sendKeyMode = parseSendKeyMode(tip ? tip.textContent : "");
+      btn.dispatchEvent(new MouseEvent("mouseout", { bubbles: true }));
+      btn.dispatchEvent(new MouseEvent("mouseleave", { bubbles: true }));
+      detecting = false;
+      if (sendKeyMode) window.StockPlus.sendKeyMode = sendKeyMode;
+    }, 250);
+  }
+
+  /** このEnterキー操作が、現在の設定で「送信」になるか */
+  function isSendKey(ev) {
+    if (ev.key !== "Enter" || ev.isComposing) return false;
+    const mod = ev.metaKey || ev.ctrlKey;
+    switch (sendKeyMode || "enter") {
+      case "shift":
+        return ev.shiftKey && !mod;
+      case "mod":
+        return mod;
+      default:
+        return !ev.shiftKey && !mod;
+    }
   }
 
   function isEnabled() {
@@ -104,6 +174,8 @@
         return;
       }
       refreshAll();
+      const room = document.querySelector(SELECTORS.chatroom);
+      if (room) detectSendKeyMode(room);
     }, 150);
   }
 
@@ -123,12 +195,12 @@
         true
       );
 
-      // キーボードでの送信（Enter / Cmd+Enter / Ctrl+Enter。Shift+Enterは改行なので対象外）
+      // キーボードでの送信（送信キーの設定に合わせて判定。改行用のEnterは妨げない）
       document.addEventListener(
         "keydown",
         (ev) => {
           if (!isEnabled()) return;
-          if (ev.key !== "Enter" || ev.shiftKey || ev.isComposing) return;
+          if (!isSendKey(ev)) return;
           const target = ev.target;
           if (!(target instanceof Element) || !target.matches(SELECTORS.composer)) return;
           const room = target.closest(SELECTORS.chatroom);

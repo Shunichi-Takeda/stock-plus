@@ -231,12 +231,14 @@
       true
     );
 
-    // キーボードによる送信（Enter / Cmd+Enter / Ctrl+Enter。Shift+Enterは改行）
+    // キーボードによる送信。送信キーはStockの設定で変わる（Enter / Shift+Enter /
+    // Ctrl+Enter）ため、Enter系はすべて「送信かもしれない」として扱い、
+    // 実際に入力欄が空になったかで判定する（armSendCheck）
     document.addEventListener(
       "keydown",
       (ev) => {
         if (!window.StockPlus.isCurrentInstance()) return;
-        if (ev.key !== "Enter" || ev.shiftKey || ev.isComposing) return;
+        if (ev.key !== "Enter" || ev.isComposing) return;
         const target = ev.target;
         if (!(target instanceof Element) || !target.matches(SELECTORS.composer)) return;
         armSendCheck(target);
