@@ -118,3 +118,7 @@ chrome.storage.sync.get({ featureSettings: {}, featureOptions: {} }, ({ featureS
     list.appendChild(li);
   }
 });
+
+// 実行中のバージョン（更新が反映されているかの確認用）
+document.getElementById("version").textContent =
+  "Stock Plus v" + chrome.runtime.getManifest().version;

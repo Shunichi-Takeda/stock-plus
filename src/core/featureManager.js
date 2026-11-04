@@ -23,6 +23,15 @@
   const INSTANCE_ID = Date.now() + "-" + Math.random().toString(36).slice(2);
   document.documentElement.setAttribute("data-stock-plus-instance", INSTANCE_ID);
   window.StockPlus.instanceId = INSTANCE_ID;
+  // 実行中のバージョンをDOMに出しておく（古いコードが動いていないかの切り分け用）
+  try {
+    document.documentElement.setAttribute(
+      "data-stock-plus-version",
+      chrome.runtime.getManifest().version
+    );
+  } catch (e) {
+    // 取得できなくても動作に影響はない
+  }
   window.StockPlus.isCurrentInstance = function () {
     return (
       document.documentElement.getAttribute("data-stock-plus-instance") ===

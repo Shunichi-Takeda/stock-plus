@@ -160,9 +160,28 @@
     setTimeout(done, 1000); // animationendが来ない場合の保険
   }
 
+  /**
+   * 確認済み（armed）のまま送信が通ったら、送信が完了して入力欄が空になった時点で
+   * 確実に確認済み状態を解除する（次のメッセージでまた確認が出るように）。
+   */
+  function clearArmedAfterSend(t) {
+    for (const delay of [300, 900, 2000]) {
+      setTimeout(() => {
+        if (t.composer && !t.composer.value.trim()) {
+          armed.delete(t.el);
+          refreshTarget(t);
+        }
+      }, delay);
+    }
+  }
+
   /** 送信操作を横取りして、1回目は「確認」として扱う。横取りしたらtrue */
   function interceptIfNeeded(t, ev) {
-    if (!needsConfirm(t) || armed.has(t.el)) return false;
+    if (armed.has(t.el)) {
+      clearArmedAfterSend(t);
+      return false;
+    }
+    if (!needsConfirm(t)) return false;
     ev.preventDefault();
     ev.stopImmediatePropagation();
     armed.add(t.el);
@@ -173,32 +192,58 @@
 
   // ---- 送信キーの判定 ------------------------------------------------------
   // Stockは設定で送信キーを変えられる（Enter / Shift+Enter / Ctrl(⌘)+Enter）。
-  // 設定値はDOMに無いが、送信ボタンのツールチップ「〜で送信」に現れるので、
-  // 最初にチャットが開いたときに一度だけホバーを模擬して読み取る。
+  // 設定値はDOMに無いが、送信ボタンのツールチップ「〜で送信」に現れる。
+  //  - ツールチップが見えたときは常に読み取って更新する（利用者が実際にホバーした
+  //    ときや、設定を途中で変えたときにも追従）
+  //  - 新しくチャットが開いたら、ホバーを模擬して読み取り直す
+  //  - 判定できていない間は、安全側に倒してEnter系のキーをすべて送信扱いにする
+  const MODE_STORAGE_KEY = "stockPlus.sendKeyMode";
   let sendKeyMode = null; // "enter" | "shift" | "mod"
+  try {
+    const saved = localStorage.getItem(MODE_STORAGE_KEY);
+    if (saved === "enter" || saved === "shift" || saved === "mod") sendKeyMode = saved;
+  } catch (e) {
+    // localStorageが使えなくても動作は継続する
+  }
+
+  function setSendKeyMode(mode) {
+    if (!mode || mode === sendKeyMode) return;
+    sendKeyMode = mode;
+    window.StockPlus.sendKeyMode = mode;
+    try {
+      localStorage.setItem(MODE_STORAGE_KEY, mode);
+    } catch (e) {
+      // 保存できなくても動作は継続する
+    }
+  }
 
   function parseSendKeyMode(text) {
-    if (!text || !/Enter/i.test(text)) return null;
+    if (!text || !/Enter|Return/i.test(text)) return null;
     if (/Shift/i.test(text)) return "shift";
     if (/Ctrl|Cmd|Command|⌘|Control/i.test(text)) return "mod";
     return "enter";
   }
 
+  /** 画面に出ているツールチップから送信キーを読み取る */
+  function readTooltipMode() {
+    const tip = document.querySelector(SELECTORS.sendTooltip);
+    setSendKeyMode(parseSendKeyMode(tip ? tip.textContent : ""));
+  }
+
+  const roomsSeen = new WeakSet();
   let detecting = false;
   function detectSendKeyMode(room) {
-    if (sendKeyMode || detecting) return;
+    if (detecting) return;
     const btn = room.querySelector(SELECTORS.sendButton);
     if (!btn) return;
     detecting = true;
     btn.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
     btn.dispatchEvent(new MouseEvent("mouseenter", { bubbles: true }));
     setTimeout(() => {
-      const tip = document.querySelector(SELECTORS.sendTooltip);
-      sendKeyMode = parseSendKeyMode(tip ? tip.textContent : "");
+      readTooltipMode();
       btn.dispatchEvent(new MouseEvent("mouseout", { bubbles: true }));
       btn.dispatchEvent(new MouseEvent("mouseleave", { bubbles: true }));
       detecting = false;
-      if (sendKeyMode) window.StockPlus.sendKeyMode = sendKeyMode;
     }, 250);
   }
 
@@ -206,13 +251,16 @@
   function isSendKey(ev) {
     if (ev.key !== "Enter" || ev.isComposing) return false;
     const mod = ev.metaKey || ev.ctrlKey;
-    switch (sendKeyMode || "enter") {
+    switch (sendKeyMode) {
       case "shift":
         return ev.shiftKey && !mod;
       case "mod":
         return mod;
-      default:
+      case "enter":
         return !ev.shiftKey && !mod;
+      default:
+        // 送信キーが判定できていない間は、取りこぼさないようEnter系をすべて対象にする
+        return true;
     }
   }
 
@@ -235,8 +283,15 @@
         return;
       }
       refreshAll();
-      const room = document.querySelector(SELECTORS.chatroom);
-      if (room) detectSendKeyMode(room);
+      readTooltipMode();
+      // 新しく開いたチャット、または送信キー未判定のときは読み取り直す
+      for (const room of document.querySelectorAll(SELECTORS.chatroom)) {
+        if (!roomsSeen.has(room) || !sendKeyMode) {
+          roomsSeen.add(room);
+          detectSendKeyMode(room);
+          break;
+        }
+      }
     }, 150);
   }
 
@@ -288,6 +343,9 @@
         "input",
         (ev) => {
           if (ev.target instanceof Element && ev.target.matches(SELECTORS.composer)) {
+            // 入力欄が空になったら確認済み状態を即解除する
+            const t = targetOf(ev.target);
+            if (t && t.composer && !t.composer.value.trim()) armed.delete(t.el);
             scheduleRefresh();
           }
         },
