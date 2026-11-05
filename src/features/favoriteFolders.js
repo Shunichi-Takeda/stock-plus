@@ -453,14 +453,15 @@
   }
 
   function initModeExit() {
-    // 左メニューで他のリンク（新着ノート・お気に入りの記事・フォルダ等）を選んだら抜ける
+    // 左メニューで他のリンク（新着ノート・お気に入りの記事・フォルダ等）を選んだら抜ける（フォルダの★は除く）
     document.addEventListener(
       "click",
       (ev) => {
         if (modePath === null || !window.StockPlus.isCurrentInstance()) return;
         if (!(ev.target instanceof Element)) return;
         const inMenu = ev.target.closest(SELECTORS.groupsBody);
-        if (inMenu && !ev.target.closest("." + LINK_CLASS)) exitMode();
+        // 行の★は登録するだけで画面を移らないので、一覧は開いたままにする
+        if (inMenu && !ev.target.closest(`.${LINK_CLASS}, .${ROW_BTN_CLASS}`)) exitMode();
       },
       true
     );
