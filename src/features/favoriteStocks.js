@@ -80,16 +80,28 @@
 
   // ---- ルーティング ----------------------------------------------------------
 
-  /** URLからチーム・記事IDを取り出す */
+  /**
+   * URLからチーム・記事IDを取り出す。次の2形式に対応する。
+   *  - 通常:  /teams/{team}/dashboard/{folder}/stocks/{id}/...
+   *  - 検索:  /teams/{team}/search/{id}/edit?q=...（検索結果から記事を開いた画面）
+   */
   function currentRoute() {
-    const m = location.pathname.match(
+    const path = location.pathname;
+    const m = path.match(
       /^\/teams\/([^/]+)\/dashboard(?:\/([^/]+)\/stocks(?:\/(\d+))?)?/
     );
-    return {
-      team: m ? m[1] : "",
-      folder: m && m[2] ? m[2] : "",
-      stockId: m && m[3] ? m[3] : "",
-    };
+    if (m) {
+      return {
+        team: m[1],
+        folder: m[2] ? m[2] : "",
+        stockId: m[3] ? m[3] : "",
+      };
+    }
+    const s = path.match(/^\/teams\/([^/]+)\/search\/(\d+)(?:\/|$)/);
+    if (s) {
+      return { team: s[1], folder: "", stockId: s[2] };
+    }
+    return { team: "", folder: "", stockId: "" };
   }
 
   function stockPath(team, stockId) {
