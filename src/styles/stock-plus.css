@@ -167,16 +167,26 @@ html.stock-plus-trackers-on .chatGroupsModal__tabBox__tab {
   color: #f5b301;
 }
 
-/* 仮想フォルダ表示中は、Stock本来の見出し・一覧を隠して自前の一覧に差し替える */
+/* 仮想フォルダ表示中は、Stock本来の見出し・一覧の上に自前の一覧を重ねて差し替える。
+   display:none で消してはいけない: Stock は「一覧がスクロールできない（scrollHeight <= clientHeight）
+   なら次のページを読む」ため、高さ 0 の一覧は全ページ（自社チームで約1,000ページ）を読み続け、
+   本番の cache サーバーを 502 にした（2026-11-05）。visibility:hidden なら高さが残り、
+   一覧が埋まった時点で追加読み込みが止まる */
 html.stock-plus-fav-mode .stocksContent > .stocksHeader,
-html.stock-plus-fav-mode .stocksContent > .stockList {
-  display: none !important;
+html.stock-plus-fav-mode .stocksContent > .stockList:not(.stock-plus-fav-list) {
+  visibility: hidden !important;
 }
 .stock-plus-fav-panel {
+  position: absolute; /* .stocksContent（position:absolute）いっぱいに重ねる */
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 10;
   display: flex;
   flex-direction: column;
-  flex: 1 1 auto;
   min-height: 0;
+  background-color: #fff;
 }
 .stock-plus-fav-panel .stock-plus-fav-list {
   flex: 1 1 auto;
