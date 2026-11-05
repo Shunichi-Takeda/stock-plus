@@ -1,13 +1,15 @@
 /**
  * Stock Plus - 機能: お気に入りのフォルダ
  *
+ * 「お気に入りの記事」（favoriteStocks.js）と同じ作りのフォルダ版。
  *  - 左メニューの各フォルダ行（親フォルダの中のフォルダ）にマウスを乗せると、
  *    右端に ★ ボタンが出て、お気に入りのON/OFFを切り替えられる
  *  - ノート一覧（第二カラム）のフォルダ名の右、⚙ の左隣にも ★ ボタンを出し、
  *    開いているフォルダのお気に入りを切り替えられる
- *  - 左メニューの「お気に入りの記事」の下に「お気に入りのフォルダ」欄を追加し、
- *    登録したフォルダを並べる。各行には所属する親フォルダ名も表示する
- *  - 欄のフォルダを選ぶと、そのフォルダのノート一覧を開く（ページ再読込なし）
+ *  - 左メニューの「お気に入りの記事」の下に「お気に入りのフォルダ」リンクを追加
+ *  - リンクを選ぶと、ノート一覧の欄をフォルダ名「お気に入りのフォルダ」として、
+ *    お気に入り登録したフォルダの一覧（親フォルダ名付き）に差し替えて表示する
+ *  - 一覧のフォルダを選ぶと、そのフォルダのノート一覧を開く（ページ再読込なし）
  *
  * 親フォルダ（⚙付きの開閉するだけの行）は対象外。
  * お気に入りはlocalStorageにチーム別で保存する（期限なし。拡張を入れ直しても残る）。
@@ -19,8 +21,10 @@
   // ---- チューニングポイント: Stock側のDOMに合わせて調整する場所 ----------
   const SELECTORS = {
     groupsBody: ".groupsBody",
-    // Stock本来のフォルダ一覧（この直前に「お気に入りのフォルダ」欄を入れる）
     groupCollectionList: ".groupsBody > ul.groupCollectionList",
+    // 左メニューの「新着ノート」と、「お気に入りの記事」（favoriteStocks.js が追加）
+    allStocksLink: ".groupsBody > a.allStocksLnk:not([class*='stock-plus-'])",
+    favStocksLink: ".groupsBody > a.stock-plus-fav-lnk",
     // フォルダ行とリンク・名前・未読数
     folderItem: "li.groupListItem",
     folderLink: "a.groupBoxLnk",
@@ -29,7 +33,8 @@
     // 親フォルダの行と名前
     parentItem: ".groupCollectionListItem",
     parentName: ".groupCollectionBox__name > span:first-child",
-    // ノート一覧（第二カラム）のフォルダ見出し（「お気に入りの記事」の自前見出しは含まない）
+    // ノート一覧（第二カラム）と、そのフォルダ見出し（自前の見出しは含まない）
+    stocksContent: ".stocksContent",
     listHeaderNameBox: ".stocksContent > .stocksHeader .groupNameBox",
     listHeaderName: ".groupName__text",
     listHeaderConfig: ".groupConfigDropdown",
@@ -38,15 +43,19 @@
 
   const SETTING_ID = "favorite-folders";
   const STORAGE_KEY = "stockPlus.favoriteFolders";
-  const COLLAPSED_KEY = "stockPlus.favoriteFolders.collapsed";
+  const MODE_CLASS = "stock-plus-favfolder-mode";
   const ROW_BTN_CLASS = "stock-plus-favfolder-btn";
   const HEADER_BTN_CLASS = "stock-plus-favfolder-header-btn";
-  const SECTION_CLASS = "stock-plus-favfolder-section";
+  const LINK_CLASS = "stock-plus-favfolder-lnk";
+  const PANEL_CLASS = "stock-plus-favfolder-panel";
 
   const STAR_SVG =
     '<svg viewBox="0 0 576 512" width="12" height="12" fill="currentColor" aria-hidden="true">' +
     '<path d="M259.3 17.8L194 150.2 47.9 171.5c-26.2 3.8-36.7 36.1-17.7 54.6l105.7 103-25 145.5c-4.5 26.3 23.2 46 46.4 33.7L288 439.6l130.7 68.7c23.2 12.2 50.9-7.4 46.4-33.7l-25-145.5 105.7-103c19-18.5 8.5-50.8-17.7-54.6L382 150.2 316.7 17.8c-11.7-23.6-45.6-23.9-57.4 0z"/>' +
     "</svg>";
+
+  // 「お気に入りのフォルダ」表示中なら、表示を始めた時のURL（URLが変わったら抜ける）
+  let modePath = null;
 
   // ---- 保存データ ------------------------------------------------------------
 
@@ -67,27 +76,11 @@
     }
   }
 
-  /** 現在のチームのお気に入り（登録した順） */
+  /** 現在のチームのお気に入り（登録が新しい順。「お気に入りの記事」と同じ） */
   function teamFavorites(team) {
     return loadAll()
       .filter((f) => f.team === team)
-      .sort((a, b) => a.savedAt - b.savedAt);
-  }
-
-  function isCollapsed() {
-    try {
-      return localStorage.getItem(COLLAPSED_KEY) === "1";
-    } catch (e) {
-      return false;
-    }
-  }
-
-  function setCollapsed(on) {
-    try {
-      localStorage.setItem(COLLAPSED_KEY, on ? "1" : "0");
-    } catch (e) {
-      // 保存できなくても表示の切り替えだけは行う
-    }
+      .sort((a, b) => b.savedAt - a.savedAt);
   }
 
   // ---- ルーティング ----------------------------------------------------------
@@ -116,7 +109,7 @@
 
   // ---- Stock本来のフォルダ行 --------------------------------------------------
 
-  /** 左メニューに描画されているフォルダ行（自前の欄は除く）を {id: 情報} で返す */
+  /** 左メニューに描画されているフォルダ行を {id: 情報} で返す */
   function collectFolderRows() {
     const rows = {};
     document
@@ -179,6 +172,12 @@
     if (changed) saveAll(list);
   }
 
+  function starLabel(on) {
+    return on
+      ? "お気に入りのフォルダから外す（Stock Plus）"
+      : "お気に入りのフォルダに追加（Stock Plus）";
+  }
+
   /** 各フォルダ行にホバーで出る★ボタンを付け、ON/OFFの見た目を合わせる */
   function ensureRowButtons(team, rows, favIds) {
     for (const id of Object.keys(rows)) {
@@ -205,9 +204,7 @@
       }
       const on = favIds.has(id);
       btn.classList.toggle("active", on);
-      const label = on
-        ? "お気に入りのフォルダから外す（Stock Plus）"
-        : "お気に入りのフォルダに追加（Stock Plus）";
+      const label = starLabel(on);
       if (btn.title !== label) btn.title = label;
     }
   }
@@ -215,7 +212,7 @@
   // ---- ノート一覧（第二カラム）の見出しの★ -----------------------------------
 
   /** 開いているフォルダの見出しで、⚙ の左隣に★ボタンを付ける */
-  function ensureHeaderButton(team, rows, favIds) {
+  function ensureHeaderButton(team, favIds) {
     const folderId = currentRoute().folder;
     const nameBox = document.querySelector(SELECTORS.listHeaderNameBox);
     const config = nameBox && nameBox.querySelector(SELECTORS.listHeaderConfig);
@@ -259,65 +256,141 @@
     }
     const on = favIds.has(folderId);
     btn.classList.toggle("active", on);
-    const label = on
-      ? "お気に入りのフォルダから外す（Stock Plus）"
-      : "お気に入りのフォルダに追加（Stock Plus）";
+    const label = starLabel(on);
     if (btn.title !== label) btn.title = label;
   }
 
-  // ---- 「お気に入りのフォルダ」欄 ---------------------------------------------
+  // ---- 左メニューの「お気に入りのフォルダ」リンク -----------------------------
 
-  function buildItem(fav, row, selected) {
+  function ensureMenuLink(favs) {
+    // 「お気に入りの記事」の下（その機能がOFFなら「新着ノート」の下）に置く
+    const anchor =
+      document.querySelector(SELECTORS.favStocksLink) ||
+      document.querySelector(SELECTORS.allStocksLink);
+    let link = document.querySelector("." + LINK_CLASS);
+    if (!anchor) return;
+
+    if (
+      link &&
+      (link.dataset.stockPlusInstance !== window.StockPlus.instanceId ||
+        link.previousElementSibling !== anchor)
+    ) {
+      link.remove();
+      link = null;
+    }
+    if (!link) {
+      link = document.createElement("a");
+      // Stockの「新着ノート」と同じ見た目にするため allStocksLnk を流用
+      link.className = "allStocksLnk " + LINK_CLASS;
+      link.href = "#";
+      link.dataset.stockPlusInstance = window.StockPlus.instanceId;
+      const label = document.createElement("span");
+      label.textContent = "お気に入りのフォルダ";
+      const count = document.createElement("span");
+      count.className = "allStocksLnk__unreadCount stock-plus-favfolder-count";
+      link.appendChild(label);
+      link.appendChild(count);
+      link.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        enterMode();
+      });
+      anchor.insertAdjacentElement("afterend", link);
+    }
+
+    const countText = favs.length > 0 ? `(${favs.length})` : "";
+    const countEl = link.querySelector(".stock-plus-favfolder-count");
+    if (countEl.textContent !== countText) countEl.textContent = countText;
+    link.classList.toggle("isSelected", modePath !== null);
+  }
+
+  // ---- 「お気に入りのフォルダ」一覧（ノート一覧の欄に重ねて表示） -------------
+
+  function enterMode() {
+    const { team } = currentRoute();
+    if (!team) return;
+    // ノート一覧の欄が無い画面なら、欄がある画面（新着ノート）へ移ってから重ねる
+    if (!document.querySelector(SELECTORS.stocksContent)) {
+      navigate(`/teams/${team}/dashboard/all/stocks`);
+    }
+    modePath = location.pathname;
+    scheduleRefresh();
+  }
+
+  function exitMode() {
+    if (modePath === null) return;
+    modePath = null;
+    scheduleRefresh();
+  }
+
+  function formatDate(ts) {
+    const d = new Date(ts);
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())}`;
+  }
+
+  function openFolder(fav) {
+    exitMode();
+    // 本来の行が描画されていればそれを押す（Stock側の選択状態等もそのまま動く）
+    const current = collectFolderRows()[fav.folderId];
+    if (current) current.link.click();
+    else navigate(folderPath(fav.team, fav.folderId));
+  }
+
+  /** 一覧の1件（「お気に入りの記事」の一覧と同じ見た目: 上に親フォルダ名、下にフォルダ名） */
+  function buildItem(fav, row) {
     const li = document.createElement("li");
-    li.className = "groupListItem stock-plus-favfolder-item" + (selected ? " isSelected" : "");
+    li.className = "stockListItem";
 
     const a = document.createElement("a");
-    a.className = "groupBoxLnk indented";
+    a.className = "stockListItem__lnkArea";
     a.href = folderPath(fav.team, fav.folderId);
     a.addEventListener("click", (ev) => {
       ev.preventDefault();
-      // 本来の行が描画されていればそれを押す（Stock側の選択状態等もそのまま動く）
-      const current = collectFolderRows()[fav.folderId];
-      if (current) current.link.click();
-      else navigate(folderPath(fav.team, fav.folderId));
+      openFolder(fav);
     });
 
-    // Stockのフォルダ行と同じ「●」アイコン
-    const icon = document.createElement("i");
-    icon.className = "groupBoxLnk__icon";
-    a.appendChild(icon);
+    const area = document.createElement("div");
+    area.className = "stockListItem__stockArea";
 
-    // フォルダ名（未読数）と、その下に親フォルダ名
-    const text = document.createElement("div");
-    text.className = "stock-plus-favfolder-text";
-    const name = document.createElement("p");
-    name.className = "groupBoxLnk__name";
-    const n = document.createElement("span");
-    n.textContent = fav.name || "(名前不明のフォルダ)";
-    name.appendChild(n);
+    if (fav.parentName) {
+      const groupBox = document.createElement("div");
+      groupBox.className = "stockListItem__groupNameBox";
+      const g = document.createElement("span");
+      g.className = "stockListItem__groupNameBox__groupName";
+      g.textContent = fav.parentName;
+      groupBox.appendChild(g);
+      area.appendChild(groupBox);
+    }
+
+    const titleBox = document.createElement("div");
+    titleBox.className = "stockListItem__titleBox";
+    const t = document.createElement("span");
+    t.className = "stockListItem__titleBox__title";
+    t.textContent = fav.name || "(名前不明のフォルダ)";
+    titleBox.appendChild(t);
     if (row && row.count) {
       const c = document.createElement("span");
-      c.className = "groupBoxLnk__name__count";
+      c.className = "stock-plus-favfolder-unread";
       c.textContent = row.count;
-      name.appendChild(c);
+      titleBox.appendChild(c);
     }
-    text.appendChild(name);
-    if (fav.parentName) {
-      const p = document.createElement("p");
-      p.className = "stock-plus-favfolder-parent";
-      p.textContent = fav.parentName;
-      p.title = "親フォルダ: " + fav.parentName;
-      text.appendChild(p);
-    }
-    a.appendChild(text);
+    area.appendChild(titleBox);
+
+    const meta = document.createElement("div");
+    meta.className = "stock-plus-fav-meta";
+    meta.textContent = `${formatDate(fav.savedAt)} にお気に入り登録`;
+    area.appendChild(meta);
+
+    a.appendChild(area);
     li.appendChild(a);
 
-    // 欄からも外せるようにする
+    // 一覧からもお気に入りを外せるようにする
     const unfav = document.createElement("button");
     unfav.type = "button";
-    unfav.className = ROW_BTN_CLASS + " active";
-    unfav.title = "お気に入りのフォルダから外す（Stock Plus）";
-    unfav.innerHTML = STAR_SVG;
+    unfav.className = "stock-plus-fav-btn stock-plus-fav-item-btn active";
+    unfav.title = starLabel(true);
+    unfav.innerHTML = STAR_SVG.replace(/width="12" height="12"/, 'width="16" height="16"');
     unfav.addEventListener("click", (ev) => {
       ev.preventDefault();
       ev.stopPropagation();
@@ -327,62 +400,79 @@
     return li;
   }
 
-  function ensureSection(team, rows, favs) {
-    const collectionList = document.querySelector(SELECTORS.groupCollectionList);
-    let section = document.querySelector("." + SECTION_CLASS);
-    if (!collectionList || favs.length === 0) {
-      if (section) section.remove();
+  function ensurePanel(rows, favs) {
+    const content = document.querySelector(SELECTORS.stocksContent);
+    let panel = document.querySelector("." + PANEL_CLASS);
+    if (modePath === null || !content) {
+      if (panel) panel.remove();
       return;
     }
 
-    const selectedId = currentRoute().folder;
-    const collapsed = isCollapsed();
-    const view = favs.map((f) => [f.folderId, f.name, f.parentName, rows[f.folderId] ? rows[f.folderId].count : ""]);
+    const view = favs.map((f) => [
+      f.folderId,
+      f.name,
+      f.parentName,
+      f.savedAt,
+      rows[f.folderId] ? rows[f.folderId].count : "",
+    ]);
     // 自分のDOM更新でオブザーバが再発火しても作り直さないよう、内容が変わったときだけ描画する
-    const signature = JSON.stringify([window.StockPlus.instanceId, selectedId, collapsed, view]);
-    if (
-      section &&
-      section.nextElementSibling === collectionList &&
-      section.dataset.signature === signature
-    ) {
+    const signature = JSON.stringify([window.StockPlus.instanceId, view]);
+    if (panel && panel.parentElement === content && panel.dataset.signature === signature) {
       return;
     }
-    if (section) section.remove();
+    if (panel) panel.remove();
 
-    section = document.createElement("div");
-    section.className = SECTION_CLASS + (collapsed ? " isCollapsed" : "");
-    section.dataset.signature = signature;
+    // 見た目は「お気に入りの記事」の一覧（.stock-plus-fav-panel）と共通のCSSを使う
+    panel = document.createElement("div");
+    panel.className = PANEL_CLASS;
+    panel.dataset.signature = signature;
 
-    const header = document.createElement("button");
-    header.type = "button";
-    header.className = "stock-plus-favfolder-header";
-    header.innerHTML = '<span class="stock-plus-favfolder-caret"></span>' + STAR_SVG + "<span></span>";
-    header.lastElementChild.textContent = `お気に入りのフォルダ (${favs.length})`;
-    header.title = collapsed ? "開く" : "閉じる";
-    header.addEventListener("click", (ev) => {
-      ev.preventDefault();
-      ev.stopPropagation();
-      setCollapsed(!isCollapsed());
-      scheduleRefresh();
-    });
-    section.appendChild(header);
+    const header = document.createElement("div");
+    header.className = "stocksHeader";
+    header.innerHTML =
+      '<div class="stocksHeaderBox"><div class="stocksHeaderBox__groupNameArea--uneditable">' +
+      '<div class="groupNameBox"><p class="groupName"></p></div></div></div>';
+    header.querySelector(".groupName").textContent = "お気に入りのフォルダ";
+    panel.appendChild(header);
 
-    if (!collapsed) {
+    const listWrap = document.createElement("div");
+    listWrap.className = "stockList stock-plus-fav-list";
+    if (favs.length === 0) {
+      const empty = document.createElement("p");
+      empty.className = "stock-plus-fav-empty";
+      empty.textContent =
+        "お気に入りのフォルダはまだありません。左メニューのフォルダや、ノート一覧の上の ★ から登録できます。";
+      listWrap.appendChild(empty);
+    } else {
       const ul = document.createElement("ul");
-      ul.className = "stock-plus-favfolder-list";
-      for (const fav of favs) {
-        ul.appendChild(buildItem(fav, rows[fav.folderId], fav.folderId === selectedId));
-      }
-      section.appendChild(ul);
+      for (const fav of favs) ul.appendChild(buildItem(fav, rows[fav.folderId]));
+      listWrap.appendChild(ul);
     }
-    collectionList.insertAdjacentElement("beforebegin", section);
+    panel.appendChild(listWrap);
+    content.appendChild(panel);
+  }
+
+  function initModeExit() {
+    // 左メニューで他のリンク（新着ノート・お気に入りの記事・フォルダ等）を選んだら抜ける
+    document.addEventListener(
+      "click",
+      (ev) => {
+        if (modePath === null || !window.StockPlus.isCurrentInstance()) return;
+        if (!(ev.target instanceof Element)) return;
+        const inMenu = ev.target.closest(SELECTORS.groupsBody);
+        if (inMenu && !ev.target.closest("." + LINK_CLASS)) exitMode();
+      },
+      true
+    );
   }
 
   // ---- 全体の更新 ------------------------------------------------------------
 
   function removeAll() {
+    modePath = null;
+    document.documentElement.classList.remove(MODE_CLASS);
     document
-      .querySelectorAll(`.${ROW_BTN_CLASS}, .${HEADER_BTN_CLASS}, .${SECTION_CLASS}`)
+      .querySelectorAll(`.${ROW_BTN_CLASS}, .${HEADER_BTN_CLASS}, .${LINK_CLASS}, .${PANEL_CLASS}`)
       .forEach((el) => el.remove());
     document
       .querySelectorAll(".stock-plus-favfolder-row")
@@ -400,6 +490,9 @@
         removeAll();
         return;
       }
+      // 別の画面へ移動した（フォルダ・記事・検索のリンク等）ら一覧表示を抜ける
+      if (modePath !== null && location.pathname !== modePath) modePath = null;
+      document.documentElement.classList.toggle(MODE_CLASS, modePath !== null);
       const { team } = currentRoute();
       if (!team || !document.querySelector(SELECTORS.groupsBody)) return;
       const rows = collectFolderRows();
@@ -407,8 +500,9 @@
       const favs = teamFavorites(team);
       const favIds = new Set(favs.map((f) => f.folderId));
       ensureRowButtons(team, rows, favIds);
-      ensureHeaderButton(team, rows, favIds);
-      ensureSection(team, rows, favs);
+      ensureHeaderButton(team, favIds);
+      ensureMenuLink(favs);
+      ensurePanel(rows, favs);
     }, 200);
   }
 
@@ -416,6 +510,7 @@
     id: SETTING_ID,
     name: "お気に入りのフォルダ",
     init() {
+      initModeExit();
       const observer = new MutationObserver(() => scheduleRefresh());
       observer.observe(document.body, { childList: true, subtree: true });
       window.addEventListener("popstate", () => scheduleRefresh());
