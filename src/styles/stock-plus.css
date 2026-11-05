@@ -275,6 +275,32 @@ html.stock-plus-fav-mode .groupsBody > a.allStocksLnk.isSelected:not(.stock-plus
   color: #f5b301;
 }
 
+/* ノート一覧の見出し（フォルダ名の右）の ⚙ の左隣の★（⚙ と同じ 15px・#999） */
+.stock-plus-favfolder-header-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: #999;
+  cursor: pointer;
+}
+.stock-plus-favfolder-header-btn > svg {
+  width: 15px;
+  height: 15px;
+}
+.stock-plus-favfolder-header-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+.stock-plus-favfolder-header-btn.active {
+  color: #f5b301;
+}
+
 /* 「お気に入りのフォルダ」欄（見出しはStockの親フォルダ行に合わせる） */
 .stock-plus-favfolder-section {
   margin: 2px 0 6px;

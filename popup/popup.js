@@ -40,7 +40,7 @@ const FEATURES = [
   {
     id: "favorite-folders",
     name: "お気に入りのフォルダ",
-    description: "左メニューのフォルダを ★ でお気に入り登録し、「お気に入りのフォルダ」欄にまとめて表示",
+    description: "フォルダを ★（左メニュー・一覧の見出し）でお気に入り登録し、「お気に入りのフォルダ」欄にまとめて表示",
   },
   {
     id: "send-confirm",
