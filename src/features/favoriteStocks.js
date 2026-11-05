@@ -379,7 +379,8 @@
         if (!favMode || !window.StockPlus.isCurrentInstance()) return;
         if (!(ev.target instanceof Element)) return;
         const inMenu = ev.target.closest(SELECTORS.groupsBody);
-        if (inMenu && !ev.target.closest("." + LINK_CLASS)) exitFavMode();
+        // 左メニューのフォルダの★（お気に入りのフォルダ）は画面を移らないので、一覧は開いたままにする
+        if (inMenu && !ev.target.closest("." + LINK_CLASS + ", .stock-plus-favfolder-btn")) exitFavMode();
       },
       true
     );

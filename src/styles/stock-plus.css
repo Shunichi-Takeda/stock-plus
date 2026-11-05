@@ -173,10 +173,13 @@ html.stock-plus-trackers-on .chatGroupsModal__tabBox__tab {
    本番の cache サーバーを 502 にした（2026-11-05）。visibility:hidden なら高さが残り、
    一覧が埋まった時点で追加読み込みが止まる */
 html.stock-plus-fav-mode .stocksContent > .stocksHeader,
-html.stock-plus-fav-mode .stocksContent > .stockList:not(.stock-plus-fav-list) {
+html.stock-plus-fav-mode .stocksContent > .stockList:not(.stock-plus-fav-list),
+html.stock-plus-favfolder-mode .stocksContent > .stocksHeader,
+html.stock-plus-favfolder-mode .stocksContent > .stockList:not(.stock-plus-fav-list) {
   visibility: hidden !important;
 }
-.stock-plus-fav-panel {
+.stock-plus-fav-panel,
+.stock-plus-favfolder-panel {
   position: absolute; /* .stocksContent（position:absolute）いっぱいに重ねる */
   top: 0;
   right: 0;
@@ -188,20 +191,24 @@ html.stock-plus-fav-mode .stocksContent > .stockList:not(.stock-plus-fav-list) {
   min-height: 0;
   background-color: #fff;
 }
-.stock-plus-fav-panel .stock-plus-fav-list {
+.stock-plus-fav-panel .stock-plus-fav-list,
+.stock-plus-favfolder-panel .stock-plus-fav-list {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
 }
-.stock-plus-fav-panel .stock-plus-fav-list > ul {
+.stock-plus-fav-panel .stock-plus-fav-list > ul,
+.stock-plus-favfolder-panel .stock-plus-fav-list > ul {
   margin: 0;
   padding: 0;
   list-style: none;
 }
-.stock-plus-fav-panel .stockListItem {
+.stock-plus-fav-panel .stockListItem,
+.stock-plus-favfolder-panel .stockListItem {
   position: relative;
 }
-.stock-plus-fav-panel .stockListItem__titleBox {
+.stock-plus-fav-panel .stockListItem__titleBox,
+.stock-plus-favfolder-panel .stockListItem__titleBox {
   padding-right: 28px; /* 右上の★と重ならないように */
 }
 .stock-plus-fav-item-btn {
@@ -231,6 +238,92 @@ html.stock-plus-fav-mode .stocksContent > .stockList:not(.stock-plus-fav-list) {
   background-color: rgb(93, 90, 121) !important;
 }
 html.stock-plus-fav-mode .groupsBody > a.allStocksLnk.isSelected:not(.stock-plus-fav-lnk) {
+  background-color: transparent !important;
+}
+
+/* ---- お気に入りのフォルダ ---- */
+
+/* フォルダ行の★: 未登録は行にマウスを乗せた時だけ、登録済みは常に表示 */
+.stock-plus-favfolder-row {
+  position: relative;
+}
+.stock-plus-favfolder-row > a.groupBoxLnk {
+  padding-right: 24px !important; /* 右端の★と文字が重ならないように */
+}
+.stock-plus-favfolder-btn {
+  position: absolute;
+  top: 4px;
+  right: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 3px;
+  background: none;
+  color: #9a97b0;
+  cursor: pointer;
+  visibility: hidden;
+}
+.stock-plus-favfolder-row:hover > .stock-plus-favfolder-btn,
+.stock-plus-favfolder-btn.active {
+  visibility: visible;
+}
+.stock-plus-favfolder-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+.stock-plus-favfolder-btn.active,
+.stock-plus-favfolder-btn.active:hover {
+  color: #f5b301;
+}
+
+/* ノート一覧の見出し（フォルダ名の右）の ⚙ の左隣の★（⚙ と同じ 15px・#999） */
+.stock-plus-favfolder-header-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: #999;
+  cursor: pointer;
+}
+.stock-plus-favfolder-header-btn > svg {
+  width: 15px;
+  height: 15px;
+}
+.stock-plus-favfolder-header-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+.stock-plus-favfolder-header-btn.active {
+  color: #f5b301;
+}
+
+/* 一覧の件名の右の未読数（Stockの左メニューの未読数と同じ表記） */
+.stock-plus-favfolder-unread {
+  margin-left: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #666;
+}
+
+/* 左メニュー: 一覧表示中は「お気に入りのフォルダ」を選択状態に、
+   「新着ノート」と、裏で開いているフォルダの行は非選択の見た目に */
+.groupsBody > a.stock-plus-favfolder-lnk {
+  font-weight: 400;
+}
+.groupsBody > a.stock-plus-favfolder-lnk.isSelected {
+  background-color: rgb(93, 90, 121) !important;
+}
+html.stock-plus-favfolder-mode .groupsBody > a.allStocksLnk.isSelected:not(.stock-plus-favfolder-lnk),
+html.stock-plus-favfolder-mode .groupsBody li.groupListItem.isSelected {
   background-color: transparent !important;
 }
 
