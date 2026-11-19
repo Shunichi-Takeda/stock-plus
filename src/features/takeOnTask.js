@@ -91,13 +91,51 @@
     );
   }
 
-  /** 備考（本文）の先頭行を、タスク名用に短く整える */
+  // 行頭のメンション1つ分（「@武田 峻一さん: 」「@All: 」、およびかっこで括られた「（ @B: ）」も）。
+  // 連続している場合は繰り返し取り除く
+  const LEADING_MENTION_RE =
+    /^[\s\u3000]*[（(「『【\[]?[\s\u3000]*@[^:：\n]{1,30}[:：][\s\u3000]*[）)」』】\]]?[\s\u3000]*/;
+  // 行頭の呼びかけ（「武田さん、」「宮原さん，」など。短い名前＋さん＋読点のときだけ）
+  const LEADING_ADDRESS_RE = /^[^\s、,，。！？!?「」]{1,15}さん[、,，]\s*/;
+
+  // メンションを抜いたあとに残る、中身の無いかっこ（「（ ）」「（　）」など）
+  const EMPTY_BRACKETS_RE = /[（(「『【\[][\s\u3000]*[）)」』】\]]/g;
+
+  /**
+   * 行頭のメンション・呼びかけを取り除く。
+   * 中身が残らない（記号・かっこ・空白だけになる）場合は空文字を返す。
+   */
+  function stripLeadingAddress(line) {
+    let t = line.trim();
+    for (let prev = null; prev !== t; ) {
+      prev = t;
+      t = t.replace(LEADING_MENTION_RE, "").trim();
+    }
+    t = t.replace(LEADING_ADDRESS_RE, "").trim();
+    t = t.replace(EMPTY_BRACKETS_RE, "").trim();
+    // 文字や数字が1つも無ければ中身なし（「（ ）」「、」など）
+    return /[\p{L}\p{N}]/u.test(t) ? t : "";
+  }
+
+  /**
+   * 備考（本文）から、タスク名用の要約を作る。
+   * 冒頭のメンションや「○○さん、」のような呼びかけは飛ばして、最初の中身のある文を使う。
+   * 全部が呼びかけだけだった場合は、元の先頭行を使う。
+   */
   function summarize(text) {
-    const line =
-      (text || "")
-        .split(/\r?\n/)
-        .map((l) => l.trim())
-        .find((l) => l.length > 0) || "";
+    const lines = (text || "")
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0);
+    let line = "";
+    for (const l of lines) {
+      const stripped = stripLeadingAddress(l);
+      if (stripped) {
+        line = stripped;
+        break;
+      }
+    }
+    if (!line) line = lines[0] || "";
     const chars = Array.from(line);
     return chars.length > SUMMARY_MAX ? chars.slice(0, SUMMARY_MAX).join("") + "…" : line;
   }
