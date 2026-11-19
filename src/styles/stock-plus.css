@@ -404,3 +404,8 @@ html.stock-plus-favfolder-mode .groupsBody li.groupListItem.isSelected {
   opacity: 0.5;
   cursor: progress;
 }
+
+/* 「了解しました」を「対応します！」に置き換えるモード: 未了解の「了解しました」を隠す */
+.chatListItemToolBox button.stock-plus-ack-hidden {
+  display: none !important;
+}

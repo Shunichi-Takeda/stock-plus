@@ -14,6 +14,10 @@
  * ノートに紐づかないメッセージの場合は、備考の先頭に「グループ：（グループ名）」を足す
  * （どのグループでのやり取りかが、ノートの代わりに分かるようにするため。本文は残す）。
  * 担当・期限などは、Stock標準の「タスクを作成」の初期値（担当=自分、期限=今日）のまま。
+ * ボタンの置き場所は、設定画面のオプションで選べる。
+ *  - 既定: 操作ボタン列の2行目（「了解しました」の真下）に追加
+ *  - 「「了解しました」を「対応します！」に置き換える」をONにすると、未了解のときは
+ *    「了解しました」ボタンを隠して、同じ位置に「対応します！」を出す
  * 設定画面で「作成後にタスクを開く」をONにしている場合は、保存後にタスク一覧から
  * 作成したタスクを探して編集画面を開き、閉じたら元の画面へ戻す（デフォルトOFF）。
  * 保存できなかった場合（入力不備など）は、ダイアログを開いたままにして利用者に委ねる。
@@ -57,6 +61,10 @@
   const SETTING_ID = "take-on-task";
   // 設定画面のオプション: 作成後にタスクの編集画面を開く（デフォルトOFF）
   const OPTION_REOPEN = "takeOnReopen";
+  // 設定画面のオプション: 「了解しました」を「対応します！」に置き換える（デフォルトOFF）
+  const OPTION_REPLACE = "takeOnReplaceAck";
+  const INLINE_CLASS = "stock-plus-takeon-inline";
+  const ACK_HIDDEN_CLASS = "stock-plus-ack-hidden";
   const ROW_CLASS = "stock-plus-takeon-row";
   const EXTRA_CLASS = "stock-plus-has-extra-row";
   const SUMMARY_MAX = 40;
@@ -161,15 +169,15 @@
   }
 
   /**
-   * タスク名: mm/dd hh:mm （投稿者）さんからの依頼を（自分）が対応する：「（本文の先頭）」
+   * タスク名: mm/dd hh:mm 【（自分） 対応】（投稿者）さん「（本文の先頭）」
    * 分からない要素は省略する（日時が読めなければ先頭を省く、投稿者が分からなければ
-   * 「依頼を…」、自分の名前が分からなければ「自分」）。
+   * 「さん」ごと省く、自分の名前が分からなければ「自分」）。
    */
   function buildTitle(stamp, assignee, sender, summary) {
-    const from = sender ? `${sender}さんからの依頼` : "依頼";
     const who = assignee || "自分";
-    const body = summary ? `：「${summary}」` : "";
-    return `${stamp ? stamp + " " : ""}${from}を${who}が対応する${body}`;
+    const from = sender ? `${sender}さん` : "";
+    const body = summary ? `「${summary}」` : "";
+    return `${stamp ? stamp + " " : ""}【${who} 対応】${from}${body}`;
   }
 
   function setNativeValue(el, value) {
@@ -321,6 +329,22 @@
     return buttonByLabel(box, SELECTORS.ackLabel) || buttonByLabel(box, SELECTORS.ackedLabel);
   }
 
+  /** 「対応します！」ボタンを作る。既存ボタンと同じ「アイコン＋ラベル」の構成で、色・サイズは既存のスタイルを継承 */
+  function createTakeOnButton(msg) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.dataset.stockPlusInstance = window.StockPlus.instanceId;
+    btn.innerHTML = ICON_SVG + "<span>対応します！</span>";
+    btn.title =
+      "「了解しました」を押して、「mm/dd hh:mm 【自分 対応】投稿者さん「本文」」のタスクを作成します（Stock Plus）";
+    btn.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      takeOn(msg, btn);
+    });
+    return btn;
+  }
+
   /** 2行目を作る。「了解しました」の真下に揃えるため、それより前のボタンと同じ幅の見えない余白を置く */
   function buildRow(msg, box) {
     const row = document.createElement("div");
@@ -336,34 +360,56 @@
       spacer.tabIndex = -1;
       row.appendChild(spacer);
     }
-
-    // 既存ボタンと同じ「アイコン＋ラベル」の構成にして、色・サイズも既存のスタイルを継承する
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.innerHTML = ICON_SVG + "<span>対応します！</span>";
-    btn.title = "「了解しました」を押して、「mm/dd hh:mm 投稿者さんからの依頼を自分が対応する：「本文」」のタスクを作成します（Stock Plus）";
-    btn.addEventListener("click", (ev) => {
-      ev.preventDefault();
-      ev.stopPropagation();
-      takeOn(msg, btn);
-    });
-    row.appendChild(btn);
+    row.appendChild(createTakeOnButton(msg));
     return row;
+  }
+
+  /** このプラグインが足したもの（2行目・置き換えボタン・「了解しました」の非表示）をすべて元に戻す */
+  function clearExtras(box) {
+    box.querySelector("." + ROW_CLASS)?.remove();
+    box.querySelector("." + INLINE_CLASS)?.remove();
+    box.classList.remove(EXTRA_CLASS);
+    box.querySelectorAll("." + ACK_HIDDEN_CLASS).forEach((b) => b.classList.remove(ACK_HIDDEN_CLASS));
   }
 
   function ensureRows() {
     const enabled = window.StockPlus.isFeatureEnabled(SETTING_ID);
+    const replace = window.StockPlus.getOption(OPTION_REPLACE, false) === true;
     for (const msg of document.querySelectorAll(SELECTORS.chatListItem)) {
       const box = msg.querySelector(SELECTORS.toolBox);
       if (!box) continue;
-      let row = box.querySelector("." + ROW_CLASS);
+      const ack = ackButtonOf(box);
 
       // 設定OFF、または「了解しました」の無いメッセージ（自分の発言など）には出さない
-      if (!enabled || !ackButtonOf(box)) {
-        if (row) row.remove();
-        box.classList.remove(EXTRA_CLASS);
+      if (!enabled || !ack) {
+        clearExtras(box);
         continue;
       }
+
+      if (replace) {
+        // 置き換えモード: 2行目は使わず、「了解しました」の位置に「対応します！」を出す
+        box.querySelector("." + ROW_CLASS)?.remove();
+        box.classList.remove(EXTRA_CLASS);
+        let inline = box.querySelector("." + INLINE_CLASS);
+        if (inline && inline.dataset.stockPlusInstance !== window.StockPlus.instanceId) {
+          inline.remove(); // 旧インスタンスのボタンはハンドラが無効なので作り直す
+          inline = null;
+        }
+        if (!inline) {
+          inline = createTakeOnButton(msg);
+          inline.classList.add(INLINE_CLASS);
+        }
+        if (ack.nextElementSibling !== inline) ack.insertAdjacentElement("afterend", inline);
+        // 未了解のときだけ「了解しました」を隠す（了解済みなら「了解解除」は残して、取り消せるようにする）
+        const notAcked = (ack.textContent || "").trim() === SELECTORS.ackLabel;
+        ack.classList.toggle(ACK_HIDDEN_CLASS, notAcked);
+        continue;
+      }
+
+      // 既定モード: 2行目に追加する
+      box.querySelector("." + INLINE_CLASS)?.remove();
+      box.querySelectorAll("." + ACK_HIDDEN_CLASS).forEach((b) => b.classList.remove(ACK_HIDDEN_CLASS));
+      let row = box.querySelector("." + ROW_CLASS);
       // 旧インスタンスが作った行はハンドラが無効なので作り直す
       if (row && row.dataset.stockPlusInstance !== window.StockPlus.instanceId) {
         row.remove();
