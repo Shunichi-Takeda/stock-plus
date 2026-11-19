@@ -5,9 +5,14 @@
  * 下に「対応します！」ボタンを追加する。押すと次の2つを一度に実行する。
  *
  *  1. 「了解しました」を押す（すでに了解済みなら押さない。押すと了解が外れるため）
- *  2. 「タスクを作成」のダイアログを開き、タスク名を「対応を承る：（本文の先頭）」にして保存する
+ *  2. 「タスクを作成」のダイアログを開き、タスク名を
+ *     「【（担当者）が対応を承る】（送信者）さん「（本文の先頭）」」にして保存する。
+ *     誰が（押した人）、誰の何を（送信者とメッセージ内容）対応すると決めたかが、
+ *     タスク一覧だけで分かるようにするため
  *
- * タスクの担当・期限などは、Stock標準の「タスクを作成」の初期値（担当=自分、期限=今日）のまま。
+ * ノートに紐づかないメッセージの場合は、備考の先頭に「グループ：（グループ名）」を足す
+ * （どのグループでのやり取りかが、ノートの代わりに分かるようにするため。本文は残す）。
+ * 担当・期限などは、Stock標準の「タスクを作成」の初期値（担当=自分、期限=今日）のまま。
  * 保存できなかった場合（入力不備など）は、ダイアログを開いたままにして利用者に委ねる。
  */
 (function () {
@@ -28,6 +33,14 @@
     taskModal: ".taskModal",
     taskTitleInput: ".taskModal__titleBox__title",
     taskComment: ".taskModal__comment",
+    // ダイアログの「ノート：○○」リンク。ノートに紐づかないメッセージでは文字が「-」になる
+    taskNoteLink: ".taskModal__noteLnkBox__lnk",
+    // チャットウィンドウの名前（グループ名。1対1のときは相手の名前）
+    roomName: "[class*='chatroom__nameBox__name'], .chatroom__nameBox__memberNames",
+    // ダイアログの「依頼：○○ >>> 担当：○○」の名前（担当の初期値は押した本人）
+    taskMemberName: ".taskModal__membersBox__name",
+    // メッセージの送信者名
+    senderName: ".chatListItem__topBox [class*='chatListItem__topBox__name']",
     taskSaveButton: "button.btn.blue",
   };
   // ----------------------------------------------------------------------
@@ -35,8 +48,7 @@
   const SETTING_ID = "take-on-task";
   const ROW_CLASS = "stock-plus-takeon-row";
   const EXTRA_CLASS = "stock-plus-has-extra-row";
-  const TITLE_PREFIX = "対応を承る";
-  const SUMMARY_MAX = 30;
+  const SUMMARY_MAX = 40;
   // 既存ボタンのアイコン（高さ11px・currentColor）に合わせた、二重チェックのアイコン
   const ICON_SVG =
     '<svg viewBox="0 0 16 11" height="11" width="16" fill="none" stroke="currentColor" ' +
@@ -79,6 +91,17 @@
     return chars.length > SUMMARY_MAX ? chars.slice(0, SUMMARY_MAX).join("") + "…" : line;
   }
 
+  /**
+   * タスク名: 【（担当者）が対応を承る】（送信者）さん「（本文の先頭）」
+   * 分からない要素は省略する（担当者が分からなければ「【対応を承る】」）。
+   */
+  function buildTitle(assignee, sender, summary) {
+    const head = assignee ? `【${assignee}が対応を承る】` : "【対応を承る】";
+    const from = sender ? `${sender}さん` : "";
+    const body = summary ? `「${summary}」` : "";
+    return head + from + body;
+  }
+
   function setNativeValue(el, value) {
     const proto =
       el.tagName === "TEXTAREA" ? window.HTMLTextAreaElement : window.HTMLInputElement;
@@ -107,6 +130,9 @@
   async function takeOn(msg, btn) {
     const room = msg.closest(SELECTORS.chatroom);
     const signature = (msg.querySelector(".chatListItem__message")?.textContent || "").trim();
+    // 送信者はダイアログを開く前（画面が作り直される前）に控えておく
+    const sender = (msg.querySelector(SELECTORS.senderName)?.textContent || "").trim();
+    const groupName = (room?.querySelector(SELECTORS.roomName)?.textContent || "").trim();
     let box = currentBox(msg, room, signature);
     if (!box) return;
     btn.disabled = true;
@@ -139,7 +165,20 @@
       // 備考には本文が自動で入る。その先頭行をタスク名に使う
       const comment = modal.querySelector(SELECTORS.taskComment);
       const summary = summarize(comment ? comment.value : "");
-      setNativeValue(titleInput, summary ? `${TITLE_PREFIX}：${summary}` : TITLE_PREFIX);
+      // 担当者名（「依頼：○ >>> 担当：○」の後ろ側）。初期値は押した本人
+      const names = modal.querySelectorAll(SELECTORS.taskMemberName);
+      const assignee = names.length ? (names[names.length - 1].textContent || "").trim() : "";
+      setNativeValue(titleInput, buildTitle(assignee, sender, summary));
+
+      // ノートに紐づかないメッセージは、備考の先頭にグループ名を入れる（本文は残す）
+      const noteLink = modal.querySelector(SELECTORS.taskNoteLink);
+      const noNote = !noteLink || ["", "-"].includes((noteLink.textContent || "").trim());
+      if (noNote && groupName && comment) {
+        const label = `グループ：${groupName}`;
+        if (!comment.value.startsWith(label)) {
+          setNativeValue(comment, comment.value ? `${label}\n\n${comment.value}` : label);
+        }
+      }
       await sleep(250);
 
       const save = Array.from(modal.querySelectorAll(SELECTORS.taskSaveButton)).find(
@@ -181,7 +220,7 @@
     const btn = document.createElement("button");
     btn.type = "button";
     btn.innerHTML = ICON_SVG + "<span>対応します！</span>";
-    btn.title = "「了解しました」を押して、「対応を承る」タスクを作成します（Stock Plus）";
+    btn.title = "「了解しました」を押して、「【自分が対応を承る】送信者さん「本文」」のタスクを作成します（Stock Plus）";
     btn.addEventListener("click", (ev) => {
       ev.preventDefault();
       ev.stopPropagation();
