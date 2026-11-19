@@ -6,8 +6,8 @@
  *
  *  1. 「了解しました」を押す（すでに了解済みなら押さない。押すと了解が外れるため）
  *  2. 「タスクを作成」のダイアログを開き、タスク名を
- *     「【（担当者）が対応を承る】（送信者）さん「（本文の先頭）」」にして保存する。
- *     誰が（押した人）、誰の何を（送信者とメッセージ内容）対応すると決めたかが、
+ *     「（投稿者）さんからの依頼を（自分）が対応する：「（本文の先頭）」」にして保存する。
+ *     誰からの依頼を、誰が（押した人）、どの内容について対応すると決めたかが、
  *     タスク一覧だけで分かるようにするため
  *
  * ノートに紐づかないメッセージの場合は、備考の先頭に「グループ：（グループ名）」を足す
@@ -100,14 +100,15 @@
   }
 
   /**
-   * タスク名: 【（担当者）が対応を承る】（送信者）さん「（本文の先頭）」
-   * 分からない要素は省略する（担当者が分からなければ「【対応を承る】」）。
+   * タスク名: （投稿者）さんからの依頼を（自分）が対応する：「（本文の先頭）」
+   * 分からない要素は省略する（投稿者が分からなければ「依頼を…」、自分の名前が
+   * 分からなければ「自分」）。
    */
   function buildTitle(assignee, sender, summary) {
-    const head = assignee ? `【${assignee}が対応を承る】` : "【対応を承る】";
-    const from = sender ? `${sender}さん` : "";
-    const body = summary ? `「${summary}」` : "";
-    return head + from + body;
+    const from = sender ? `${sender}さんからの依頼` : "依頼";
+    const who = assignee || "自分";
+    const body = summary ? `：「${summary}」` : "";
+    return `${from}を${who}が対応する${body}`;
   }
 
   function setNativeValue(el, value) {
@@ -278,7 +279,7 @@
     const btn = document.createElement("button");
     btn.type = "button";
     btn.innerHTML = ICON_SVG + "<span>対応します！</span>";
-    btn.title = "「了解しました」を押して、「【自分が対応を承る】送信者さん「本文」」のタスクを作成します（Stock Plus）";
+    btn.title = "「了解しました」を押して、「投稿者さんからの依頼を自分が対応する：「本文」」のタスクを作成します（Stock Plus）";
     btn.addEventListener("click", (ev) => {
       ev.preventDefault();
       ev.stopPropagation();
