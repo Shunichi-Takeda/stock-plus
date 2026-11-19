@@ -374,3 +374,33 @@ html.stock-plus-favfolder-mode .groupsBody li.groupListItem.isSelected {
   position: relative;
   z-index: 1;
 }
+
+/* ---- 「対応します！」ボタン（メッセージ操作ボタン列の2行目） ---- */
+
+/* 操作ボックスを折り返し可能にして2行にし、下端を1行ぶん（約21px）下げる */
+.chatListItemToolBox.stock-plus-has-extra-row {
+  flex-wrap: wrap !important;
+  bottom: -39px !important;
+}
+/* 最新メッセージの2行目がチャット下端の入力欄に隠れないよう、スクロール領域の下に余白を足す */
+.chatroom__chats:has(.stock-plus-has-extra-row) {
+  padding-bottom: 22px;
+}
+.chatListItemToolBox .stock-plus-takeon-row {
+  flex: 0 0 100%;
+  display: flex;
+  justify-content: flex-end;
+  border-top: 1px solid #e6e6e6;
+}
+.chatListItemToolBox .stock-plus-takeon-row button {
+  color: #2e9e5b;
+  font-weight: 700;
+  cursor: pointer;
+}
+.chatListItemToolBox .stock-plus-takeon-row button:hover {
+  background: rgba(46, 158, 91, 0.1);
+}
+.chatListItemToolBox .stock-plus-takeon-row button:disabled {
+  opacity: 0.5;
+  cursor: progress;
+}

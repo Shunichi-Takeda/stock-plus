@@ -49,6 +49,11 @@ const FEATURES = [
     // 数値オプション（featureOptions に保存）
     option: { key: "sendConfirmThreshold", label: "しきい値", unit: "名以上", default: 10, min: 1, max: 999 },
   },
+  {
+    id: "take-on-task",
+    name: "「対応します！」ボタン",
+    description: "メッセージの操作ボタン列の下に追加。「了解しました」と「対応を承る」タスク作成を同時に実行",
+  },
 ];
 
 const list = document.getElementById("feature-list");
