@@ -56,6 +56,13 @@ const FEATURES = [
     // 真偽オプション（featureOptions に保存。デフォルトOFF）
     option: { key: "takeOnKeepOpen", type: "checkbox", label: "保存せず、タスク設定画面を開いたままにする", default: false },
   },
+  {
+    id: "thanks-done-reactions",
+    name: "「ありがとう」「完了しました」リアクション",
+    description: "「了解しました」の右に「🙏 ありがとう」「✅ 完了しました」を追加。押すと元メッセージの下に「2人がありがとう」のように表示",
+    // 真偽オプション（featureOptions に保存。デフォルトON）
+    option: { key: "reactionsHideUnread", type: "checkbox", label: "操作ボタン列の「未読に戻す」を隠す", default: true },
+  },
 ];
 
 const list = document.getElementById("feature-list");

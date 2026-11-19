@@ -386,3 +386,88 @@ html.stock-plus-favfolder-mode .groupsBody li.groupListItem.isSelected {
   opacity: 0.5;
   cursor: progress;
 }
+
+/* ---- 「ありがとう」「完了しました」リアクション ---- */
+
+/* 専用メッセージ（リアクション用）は非表示 */
+.chatListItem.stock-plus-rx-marker {
+  display: none !important;
+}
+
+/*
+ * ホバー時の操作ボタン: 「未読に戻す」は隠す。ボタン名は省略せず、入りきらないときは
+ * 左揃えで2段に折り返す。2段目はメッセージ本文に被らないよう下へ伸ばす。
+ */
+.chatListItemToolBox .stock-plus-rx-hide {
+  display: none !important;
+}
+.chatListItemToolBox:has(.stock-plus-rx-btn) {
+  flex-wrap: wrap !important;
+  justify-content: flex-start;
+  max-width: calc(100% - 20px);
+  top: calc(100% - 2px);
+  bottom: auto !important;
+}
+/* 一覧の一番下のメッセージなどで表示枠の下に隠れる場合は、メッセージの内側（下端）に表示する */
+.chatListItemToolBox.stock-plus-rx-up {
+  top: auto !important;
+  bottom: 0 !important;
+  border-width: 1px;
+  border-radius: 3px;
+}
+.chatListItemToolBox .stock-plus-rx-btn .stock-plus-rx-emoji {
+  margin-right: 2px;
+  font-size: 11px;
+}
+
+/* メッセージ下の「N人がありがとう」: 見た目は Stock の .chatListItemReactionsContainer をそのまま使う */
+.stock-plus-rx-reactions .chatListItemReactionsContainer__button .stock-plus-rx-emoji {
+  font-size: 12px;
+  line-height: 1;
+}
+.stock-plus-rx-reactions .chatListItemReactionsContainer__link {
+  cursor: pointer;
+}
+
+/* 押した人の一覧（Stock の一覧ポップアップのクラスを流用し、位置だけ指定） */
+.popover.customPopoverMenu.stock-plus-rx-popover {
+  position: absolute;
+  width: 380px;
+  max-width: 380px;
+  height: 250px;
+  transform: none;
+  margin: 0;
+  z-index: 2147483000;
+}
+.stock-plus-rx-popover .stock-plus-rx-check {
+  font-weight: 700;
+}
+
+/* 取り消し時の削除確認ダイアログは見せない（自動で OK を押す） */
+body.stock-plus-rx-silent .modal,
+body.stock-plus-rx-silent .modal-backdrop {
+  visibility: hidden !important;
+}
+
+/* トースト */
+#stock-plus-rx-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 32px;
+  transform: translateX(-50%) translateY(20px);
+  max-width: 480px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  background: rgba(30, 40, 60, 0.92);
+  color: #fff;
+  font-size: 13px;
+  line-height: 1.5;
+  z-index: 2147483647;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s, transform 0.2s;
+}
+#stock-plus-rx-toast.stock-plus-rx-toast--show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
