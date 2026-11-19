@@ -2,25 +2,27 @@
  * Stock Plus - 機能: 「対応します！」ボタン
  *
  * メッセージにホバーすると出る操作ボタン列（返信 / 了解しました / … / タスクを作成）の
- * 下に「対応します！」ボタンを追加する。押すと次の2つを一度に実行する。
+ * 「了解しました」を「対応します！」に置き換える。押すと次の2つを一度に実行する。
  *
  *  1. 「了解しました」を押す（すでに了解済みなら押さない。押すと了解が外れるため）
  *  2. 「タスクを作成」のダイアログを開き、タスク名を
- *     「mm/dd hh:mm （投稿者）さんからの依頼を（自分）が対応する：「（本文の先頭）」」にして保存する。
+ *     「mm/dd hh:mm 【（自分） 対応】（投稿者）さん「（本文の先頭）」」にして保存する。
  *     （mm/dd hh:mm はメッセージの投稿日時）
- *     誰からの依頼を、誰が（押した人）、どの内容について対応すると決めたかが、
+ *     誰が（押した人）、誰の、どの内容について対応すると決めたかが、
  *     タスク一覧だけで分かるようにするため
+ *
+ * 置き換えの扱い:
+ *  - 未了解のメッセージでは「了解しました」を隠して、同じ位置に「対応します！」を出す
+ *  - 了解済みのメッセージでは、取り消せるよう「了解解除」は残し、その隣に「対応します！」を出す
+ *  - 自分の発言など「了解しました」の無いメッセージには出さない
  *
  * ノートに紐づかないメッセージの場合は、備考の先頭に「グループ：（グループ名）」を足す
  * （どのグループでのやり取りかが、ノートの代わりに分かるようにするため。本文は残す）。
  * 担当・期限などは、Stock標準の「タスクを作成」の初期値（担当=自分、期限=今日）のまま。
- * ボタンの置き場所は、設定画面のオプションで選べる。
- *  - 既定: 操作ボタン列の2行目（「了解しました」の真下）に追加
- *  - 「「了解しました」を「対応します！」に置き換える」をONにすると、未了解のときは
- *    「了解しました」ボタンを隠して、同じ位置に「対応します！」を出す
- * 設定画面で「作成後にタスクを開く」をONにしている場合は、保存後にタスク一覧から
- * 作成したタスクを探して編集画面を開き、閉じたら元の画面へ戻す（デフォルトOFF）。
- * 保存できなかった場合（入力不備など）は、ダイアログを開いたままにして利用者に委ねる。
+ *
+ * 設定画面のオプション「保存せず、タスク設定画面を開いたままにする」をONにすると、
+ * タスク名・備考を入れたところで止めて、保存は利用者が自分で行う（デフォルトOFF=自動保存）。
+ * 自動保存で保存できなかった場合（入力不備など）も、ダイアログを開いたままにして利用者に委ねる。
  */
 (function () {
   "use strict";
@@ -51,22 +53,14 @@
     // メッセージの送信者名
     senderName: ".chatListItem__topBox [class*='chatListItem__topBox__name']",
     taskSaveButton: "button.btn.blue",
-    // タスク一覧（保存したタスクを探して開き直すのに使う）
-    taskListItem: "li.taskListTaskItem",
-    taskListName: ".taskListTaskItem__nameCell__taskName",
-    taskListNameCell: ".taskListTaskItem__nameCell",
   };
   // ----------------------------------------------------------------------
 
   const SETTING_ID = "take-on-task";
-  // 設定画面のオプション: 作成後にタスクの編集画面を開く（デフォルトOFF）
-  const OPTION_REOPEN = "takeOnReopen";
-  // 設定画面のオプション: 「了解しました」を「対応します！」に置き換える（デフォルトOFF）
-  const OPTION_REPLACE = "takeOnReplaceAck";
+  // 設定画面のオプション: 保存せず、タスク設定画面を開いたままにする（デフォルトOFF）
+  const OPTION_KEEP_OPEN = "takeOnKeepOpen";
   const INLINE_CLASS = "stock-plus-takeon-inline";
   const ACK_HIDDEN_CLASS = "stock-plus-ack-hidden";
-  const ROW_CLASS = "stock-plus-takeon-row";
-  const EXTRA_CLASS = "stock-plus-has-extra-row";
   const SUMMARY_MAX = 40;
   // 既存ボタンのアイコン（高さ11px・currentColor）に合わせた、二重チェックのアイコン
   const ICON_SVG =
@@ -204,52 +198,6 @@
     return null;
   }
 
-  // ---- 作成後にタスクを開く（オプション） ----------------------------------------
-
-  /** StockのSPAルーター（History API）に乗せて画面遷移する（ページ再読込なし） */
-  function navigate(path) {
-    if (location.pathname + location.search === path) return;
-    history.pushState({}, "", path);
-    window.dispatchEvent(new PopStateEvent("popstate", { state: {} }));
-  }
-
-  /**
-   * 保存したタスクをタスク一覧から探して編集画面を開く。
-   * メッセージから作ったタスクがチャットに「作成しました」と出るとは限らないため、
-   * 確実に見つかるタスク一覧を経由する。ダイアログを閉じたら元の画面へ戻す。
-   */
-  async function reopenCreatedTask(title) {
-    const team = (location.pathname.match(/^\/teams\/([^/]+)/) || [])[1];
-    if (!team) return;
-    const origin = location.pathname + location.search;
-    const listPath = `/teams/${team}/dashboard/tasks`;
-
-    navigate(listPath);
-    const nameCell = await waitFor(() => {
-      for (const item of document.querySelectorAll(SELECTORS.taskListItem)) {
-        const name = item.querySelector(SELECTORS.taskListName);
-        if (name && (name.textContent || "").trim() === title) {
-          return item.querySelector(SELECTORS.taskListNameCell);
-        }
-      }
-      return null;
-    }, 8000, 250);
-
-    if (!nameCell) {
-      navigate(origin);
-      alert("作成したタスクをタスク一覧から見つけられなかったため、開けませんでした。");
-      return;
-    }
-    nameCell.click();
-    if (!(await waitFor(openTaskModal, 4000))) {
-      navigate(origin);
-      return;
-    }
-    // 編集画面が閉じられるまで待ち、まだタスク一覧にいれば元の画面へ戻す（最大30分）
-    await waitFor(() => !openTaskModal(), 30 * 60 * 1000, 500);
-    if (location.pathname === listPath) navigate(origin);
-  }
-
   /** 「対応します！」の本処理 */
   async function takeOn(msg, btn) {
     const room = msg.closest(SELECTORS.chatroom);
@@ -307,22 +255,22 @@
       }
       await sleep(250);
 
+      // 「保存せず開いたままにする」オプションがONなら、ここで止めて利用者に委ねる
+      if (window.StockPlus.getOption(OPTION_KEEP_OPEN, false) === true) return;
+
       const save = Array.from(modal.querySelectorAll(SELECTORS.taskSaveButton)).find(
         (b) => (b.textContent || "").trim() === "保存"
       );
       if (!save) return; // 保存ボタンが見つからなければ、利用者が押せるよう開いたままにする
       save.click();
       // 保存されればダイアログが閉じる。閉じない場合は入力不備などなので、そのまま利用者に委ねる
-      const saved = await waitFor(() => !openTaskModal(), 4000);
-      if (saved && window.StockPlus.getOption(OPTION_REOPEN, false) === true) {
-        reopenCreatedTask(taskTitle); // 完了を待たず、ボタンはすぐ使える状態に戻す
-      }
+      await waitFor(() => !openTaskModal(), 4000);
     } finally {
       btn.disabled = false;
     }
   }
 
-  // ---- 各メッセージの操作ボックスに2行目を追加 --------------------------------
+  // ---- 各メッセージの操作ボックスで「了解しました」を置き換える ---------------------
 
   /** 「了解しました」（または了解済みの「了解解除」）のボタン。自分のメッセージには無い */
   function ackButtonOf(box) {
@@ -345,36 +293,14 @@
     return btn;
   }
 
-  /** 2行目を作る。「了解しました」の真下に揃えるため、それより前のボタンと同じ幅の見えない余白を置く */
-  function buildRow(msg, box) {
-    const row = document.createElement("div");
-    row.className = ROW_CLASS;
-    row.dataset.stockPlusInstance = window.StockPlus.instanceId;
-
-    const ack = ackButtonOf(box);
-    for (const b of box.querySelectorAll(":scope > button")) {
-      if (b === ack) break;
-      const spacer = b.cloneNode(true);
-      spacer.className = "stock-plus-takeon-spacer";
-      spacer.setAttribute("aria-hidden", "true");
-      spacer.tabIndex = -1;
-      row.appendChild(spacer);
-    }
-    row.appendChild(createTakeOnButton(msg));
-    return row;
-  }
-
-  /** このプラグインが足したもの（2行目・置き換えボタン・「了解しました」の非表示）をすべて元に戻す */
+  /** このプラグインが足したもの（置き換えボタン・「了解しました」の非表示）をすべて元に戻す */
   function clearExtras(box) {
-    box.querySelector("." + ROW_CLASS)?.remove();
     box.querySelector("." + INLINE_CLASS)?.remove();
-    box.classList.remove(EXTRA_CLASS);
     box.querySelectorAll("." + ACK_HIDDEN_CLASS).forEach((b) => b.classList.remove(ACK_HIDDEN_CLASS));
   }
 
-  function ensureRows() {
+  function ensureButtons() {
     const enabled = window.StockPlus.isFeatureEnabled(SETTING_ID);
-    const replace = window.StockPlus.getOption(OPTION_REPLACE, false) === true;
     for (const msg of document.querySelectorAll(SELECTORS.chatListItem)) {
       const box = msg.querySelector(SELECTORS.toolBox);
       if (!box) continue;
@@ -386,39 +312,19 @@
         continue;
       }
 
-      if (replace) {
-        // 置き換えモード: 2行目は使わず、「了解しました」の位置に「対応します！」を出す
-        box.querySelector("." + ROW_CLASS)?.remove();
-        box.classList.remove(EXTRA_CLASS);
-        let inline = box.querySelector("." + INLINE_CLASS);
-        if (inline && inline.dataset.stockPlusInstance !== window.StockPlus.instanceId) {
-          inline.remove(); // 旧インスタンスのボタンはハンドラが無効なので作り直す
-          inline = null;
-        }
-        if (!inline) {
-          inline = createTakeOnButton(msg);
-          inline.classList.add(INLINE_CLASS);
-        }
-        if (ack.nextElementSibling !== inline) ack.insertAdjacentElement("afterend", inline);
-        // 未了解のときだけ「了解しました」を隠す（了解済みなら「了解解除」は残して、取り消せるようにする）
-        const notAcked = (ack.textContent || "").trim() === SELECTORS.ackLabel;
-        ack.classList.toggle(ACK_HIDDEN_CLASS, notAcked);
-        continue;
+      let inline = box.querySelector("." + INLINE_CLASS);
+      if (inline && inline.dataset.stockPlusInstance !== window.StockPlus.instanceId) {
+        inline.remove(); // 旧インスタンスのボタンはハンドラが無効なので作り直す
+        inline = null;
       }
-
-      // 既定モード: 2行目に追加する
-      box.querySelector("." + INLINE_CLASS)?.remove();
-      box.querySelectorAll("." + ACK_HIDDEN_CLASS).forEach((b) => b.classList.remove(ACK_HIDDEN_CLASS));
-      let row = box.querySelector("." + ROW_CLASS);
-      // 旧インスタンスが作った行はハンドラが無効なので作り直す
-      if (row && row.dataset.stockPlusInstance !== window.StockPlus.instanceId) {
-        row.remove();
-        row = null;
+      if (!inline) {
+        inline = createTakeOnButton(msg);
+        inline.classList.add(INLINE_CLASS);
       }
-      if (!row) {
-        box.appendChild(buildRow(msg, box));
-      }
-      box.classList.add(EXTRA_CLASS);
+      if (ack.nextElementSibling !== inline) ack.insertAdjacentElement("afterend", inline);
+      // 未了解のときだけ「了解しました」を隠す（了解済みなら「了解解除」は残して、取り消せるようにする）
+      const notAcked = (ack.textContent || "").trim() === SELECTORS.ackLabel;
+      ack.classList.toggle(ACK_HIDDEN_CLASS, notAcked);
     }
   }
 
@@ -429,7 +335,7 @@
     timer = setTimeout(() => {
       timer = null;
       if (!window.StockPlus.isCurrentInstance()) return;
-      ensureRows();
+      ensureButtons();
     }, 200);
   }
 

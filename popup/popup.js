@@ -52,12 +52,9 @@ const FEATURES = [
   {
     id: "take-on-task",
     name: "「対応します！」ボタン",
-    description: "メッセージの操作ボタン列の下に追加。「了解しました」と、誰が何に対応するか分かる名前のタスク作成を同時に実行",
-    // 真偽オプション（featureOptions に保存。どちらもデフォルトOFF）
-    options: [
-      { key: "takeOnReplaceAck", type: "checkbox", label: "「了解しました」を「対応します！」に置き換える", default: false },
-      { key: "takeOnReopen", type: "checkbox", label: "作成後にタスクを開く（編集画面）", default: false },
-    ],
+    description: "「了解しました」を置き換え。押すと了解と、誰が何に対応するか分かる名前のタスク作成を同時に実行",
+    // 真偽オプション（featureOptions に保存。デフォルトOFF）
+    option: { key: "takeOnKeepOpen", type: "checkbox", label: "保存せず、タスク設定画面を開いたままにする", default: false },
   },
 ];
 

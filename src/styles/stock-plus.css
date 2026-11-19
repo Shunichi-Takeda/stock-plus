@@ -375,37 +375,14 @@ html.stock-plus-favfolder-mode .groupsBody li.groupListItem.isSelected {
   z-index: 1;
 }
 
-/* ---- 「対応します！」ボタン（メッセージ操作ボタン列の2行目） ---- */
+/* ---- 「対応します！」ボタン ---- */
 
-/* 操作ボックスを折り返し可能にして2行にし、下端を1行ぶん（約21px）下げる */
-.chatListItemToolBox.stock-plus-has-extra-row {
-  flex-wrap: wrap !important;
-  bottom: -39px !important;
-}
-/* 最新メッセージの2行目がチャット下端の入力欄に隠れないよう、スクロール領域の下に余白を足す */
-.chatroom__chats:has(.stock-plus-has-extra-row) {
-  padding-bottom: 22px;
-}
-.chatListItemToolBox .stock-plus-takeon-row {
-  flex: 0 0 100%;
-  display: flex;
-  justify-content: flex-start;
-  border-top: 1px solid #e6e6e6;
-}
-/* 「了解しました」の真下に揃えるための、見えない余白（返信ボタンの複製） */
-.chatListItemToolBox .stock-plus-takeon-row .stock-plus-takeon-spacer {
-  visibility: hidden;
-  pointer-events: none;
-}
-.chatListItemToolBox .stock-plus-takeon-row button:not(.stock-plus-takeon-spacer) {
-  cursor: pointer;
-}
-.chatListItemToolBox .stock-plus-takeon-row button:disabled {
-  opacity: 0.5;
-  cursor: progress;
-}
-
-/* 「了解しました」を「対応します！」に置き換えるモード: 未了解の「了解しました」を隠す */
+/* 「了解しました」を「対応します！」に置き換える: 未了解の「了解しました」を隠す
+   （「対応します！」は既存ボタンと同じ構成なので、見た目は既存のスタイルを継承する） */
 .chatListItemToolBox button.stock-plus-ack-hidden {
   display: none !important;
+}
+.chatListItemToolBox button.stock-plus-takeon-inline:disabled {
+  opacity: 0.5;
+  cursor: progress;
 }
