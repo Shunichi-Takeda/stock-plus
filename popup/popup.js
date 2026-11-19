@@ -53,6 +53,8 @@ const FEATURES = [
     id: "take-on-task",
     name: "「対応します！」ボタン",
     description: "メッセージの操作ボタン列の下に追加。「了解しました」と、誰が何に対応するか分かる名前のタスク作成を同時に実行",
+    // 真偽オプション（featureOptions に保存。デフォルトOFF）
+    option: { key: "takeOnReopen", type: "checkbox", label: "作成後にタスクを開く（編集画面）", default: false },
   },
 ];
 
@@ -90,40 +92,62 @@ chrome.storage.sync.get({ featureSettings: {}, featureOptions: {} }, ({ featureS
     label.appendChild(body);
     li.appendChild(label);
 
-    // 数値オプション（ON/OFFの下に「しきい値: [10] 名以上」の形で表示）
+    // オプション（ON/OFFの下に表示）。type: "checkbox" は真偽、それ以外は数値
     if (feature.option) {
       const opt = feature.option;
       const row = document.createElement("div");
       row.className = "feature-option";
-      const optLabel = document.createElement("span");
-      optLabel.textContent = opt.label + ":";
-      const input = document.createElement("input");
-      input.type = "number";
-      input.min = String(opt.min);
-      input.max = String(opt.max);
-      input.value = String(featureOptions[opt.key] ?? opt.default);
-      input.disabled = !checkbox.checked;
-      const unit = document.createElement("span");
-      unit.textContent = opt.unit;
-      row.appendChild(optLabel);
-      row.appendChild(input);
-      row.appendChild(unit);
-      li.appendChild(row);
 
-      const save = () => {
-        let v = parseInt(input.value, 10);
-        if (!Number.isFinite(v)) v = opt.default;
-        v = Math.min(opt.max, Math.max(opt.min, v));
-        input.value = String(v);
-        chrome.storage.sync.get({ featureOptions: {} }, (res) => {
-          const next = res.featureOptions || {};
-          next[opt.key] = v;
-          chrome.storage.sync.set({ featureOptions: next });
+      if (opt.type === "checkbox") {
+        const optLabel = document.createElement("label");
+        const box = document.createElement("input");
+        box.type = "checkbox";
+        box.checked = featureOptions[opt.key] ?? opt.default;
+        box.disabled = !checkbox.checked;
+        optLabel.appendChild(box);
+        optLabel.appendChild(document.createTextNode(opt.label));
+        row.appendChild(optLabel);
+        li.appendChild(row);
+
+        box.addEventListener("change", () => {
+          chrome.storage.sync.get({ featureOptions: {} }, (res) => {
+            const next = res.featureOptions || {};
+            next[opt.key] = box.checked;
+            chrome.storage.sync.set({ featureOptions: next });
+          });
         });
-      };
-      input.addEventListener("change", save);
-      input.addEventListener("blur", save);
-      checkbox.addEventListener("change", () => { input.disabled = !checkbox.checked; });
+        checkbox.addEventListener("change", () => { box.disabled = !checkbox.checked; });
+      } else {
+        const optLabel = document.createElement("span");
+        optLabel.textContent = opt.label + ":";
+        const input = document.createElement("input");
+        input.type = "number";
+        input.min = String(opt.min);
+        input.max = String(opt.max);
+        input.value = String(featureOptions[opt.key] ?? opt.default);
+        input.disabled = !checkbox.checked;
+        const unit = document.createElement("span");
+        unit.textContent = opt.unit;
+        row.appendChild(optLabel);
+        row.appendChild(input);
+        row.appendChild(unit);
+        li.appendChild(row);
+
+        const save = () => {
+          let v = parseInt(input.value, 10);
+          if (!Number.isFinite(v)) v = opt.default;
+          v = Math.min(opt.max, Math.max(opt.min, v));
+          input.value = String(v);
+          chrome.storage.sync.get({ featureOptions: {} }, (res) => {
+            const next = res.featureOptions || {};
+            next[opt.key] = v;
+            chrome.storage.sync.set({ featureOptions: next });
+          });
+        };
+        input.addEventListener("change", save);
+        input.addEventListener("blur", save);
+        checkbox.addEventListener("change", () => { input.disabled = !checkbox.checked; });
+      }
     }
     list.appendChild(li);
   }

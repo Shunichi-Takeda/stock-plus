@@ -13,6 +13,8 @@
  * ノートに紐づかないメッセージの場合は、備考の先頭に「グループ：（グループ名）」を足す
  * （どのグループでのやり取りかが、ノートの代わりに分かるようにするため。本文は残す）。
  * 担当・期限などは、Stock標準の「タスクを作成」の初期値（担当=自分、期限=今日）のまま。
+ * 設定画面で「作成後にタスクを開く」をONにしている場合は、保存後にタスク一覧から
+ * 作成したタスクを探して編集画面を開き、閉じたら元の画面へ戻す（デフォルトOFF）。
  * 保存できなかった場合（入力不備など）は、ダイアログを開いたままにして利用者に委ねる。
  */
 (function () {
@@ -42,10 +44,16 @@
     // メッセージの送信者名
     senderName: ".chatListItem__topBox [class*='chatListItem__topBox__name']",
     taskSaveButton: "button.btn.blue",
+    // タスク一覧（保存したタスクを探して開き直すのに使う）
+    taskListItem: "li.taskListTaskItem",
+    taskListName: ".taskListTaskItem__nameCell__taskName",
+    taskListNameCell: ".taskListTaskItem__nameCell",
   };
   // ----------------------------------------------------------------------
 
   const SETTING_ID = "take-on-task";
+  // 設定画面のオプション: 作成後にタスクの編集画面を開く（デフォルトOFF）
+  const OPTION_REOPEN = "takeOnReopen";
   const ROW_CLASS = "stock-plus-takeon-row";
   const EXTRA_CLASS = "stock-plus-has-extra-row";
   const SUMMARY_MAX = 40;
@@ -126,6 +134,52 @@
     return null;
   }
 
+  // ---- 作成後にタスクを開く（オプション） ----------------------------------------
+
+  /** StockのSPAルーター（History API）に乗せて画面遷移する（ページ再読込なし） */
+  function navigate(path) {
+    if (location.pathname + location.search === path) return;
+    history.pushState({}, "", path);
+    window.dispatchEvent(new PopStateEvent("popstate", { state: {} }));
+  }
+
+  /**
+   * 保存したタスクをタスク一覧から探して編集画面を開く。
+   * メッセージから作ったタスクがチャットに「作成しました」と出るとは限らないため、
+   * 確実に見つかるタスク一覧を経由する。ダイアログを閉じたら元の画面へ戻す。
+   */
+  async function reopenCreatedTask(title) {
+    const team = (location.pathname.match(/^\/teams\/([^/]+)/) || [])[1];
+    if (!team) return;
+    const origin = location.pathname + location.search;
+    const listPath = `/teams/${team}/dashboard/tasks`;
+
+    navigate(listPath);
+    const nameCell = await waitFor(() => {
+      for (const item of document.querySelectorAll(SELECTORS.taskListItem)) {
+        const name = item.querySelector(SELECTORS.taskListName);
+        if (name && (name.textContent || "").trim() === title) {
+          return item.querySelector(SELECTORS.taskListNameCell);
+        }
+      }
+      return null;
+    }, 8000, 250);
+
+    if (!nameCell) {
+      navigate(origin);
+      alert("作成したタスクをタスク一覧から見つけられなかったため、開けませんでした。");
+      return;
+    }
+    nameCell.click();
+    if (!(await waitFor(openTaskModal, 4000))) {
+      navigate(origin);
+      return;
+    }
+    // 編集画面が閉じられるまで待ち、まだタスク一覧にいれば元の画面へ戻す（最大30分）
+    await waitFor(() => !openTaskModal(), 30 * 60 * 1000, 500);
+    if (location.pathname === listPath) navigate(origin);
+  }
+
   /** 「対応します！」の本処理 */
   async function takeOn(msg, btn) {
     const room = msg.closest(SELECTORS.chatroom);
@@ -168,7 +222,8 @@
       // 担当者名（「依頼：○ >>> 担当：○」の後ろ側）。初期値は押した本人
       const names = modal.querySelectorAll(SELECTORS.taskMemberName);
       const assignee = names.length ? (names[names.length - 1].textContent || "").trim() : "";
-      setNativeValue(titleInput, buildTitle(assignee, sender, summary));
+      const taskTitle = buildTitle(assignee, sender, summary);
+      setNativeValue(titleInput, taskTitle);
 
       // ノートに紐づかないメッセージは、備考の先頭にグループ名を入れる（本文は残す）
       const noteLink = modal.querySelector(SELECTORS.taskNoteLink);
@@ -187,7 +242,10 @@
       if (!save) return; // 保存ボタンが見つからなければ、利用者が押せるよう開いたままにする
       save.click();
       // 保存されればダイアログが閉じる。閉じない場合は入力不備などなので、そのまま利用者に委ねる
-      await waitFor(() => !openTaskModal(), 4000);
+      const saved = await waitFor(() => !openTaskModal(), 4000);
+      if (saved && window.StockPlus.getOption(OPTION_REOPEN, false) === true) {
+        reopenCreatedTask(taskTitle); // 完了を待たず、ボタンはすぐ使える状態に戻す
+      }
     } finally {
       btn.disabled = false;
     }
