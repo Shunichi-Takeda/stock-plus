@@ -389,16 +389,16 @@ html.stock-plus-favfolder-mode .groupsBody li.groupListItem.isSelected {
 .chatListItemToolBox .stock-plus-takeon-row {
   flex: 0 0 100%;
   display: flex;
-  justify-content: flex-end;
+  justify-content: flex-start;
   border-top: 1px solid #e6e6e6;
 }
-.chatListItemToolBox .stock-plus-takeon-row button {
-  color: #2e9e5b;
-  font-weight: 700;
-  cursor: pointer;
+/* 「了解しました」の真下に揃えるための、見えない余白（返信ボタンの複製） */
+.chatListItemToolBox .stock-plus-takeon-row .stock-plus-takeon-spacer {
+  visibility: hidden;
+  pointer-events: none;
 }
-.chatListItemToolBox .stock-plus-takeon-row button:hover {
-  background: rgba(46, 158, 91, 0.1);
+.chatListItemToolBox .stock-plus-takeon-row button:not(.stock-plus-takeon-spacer) {
+  cursor: pointer;
 }
 .chatListItemToolBox .stock-plus-takeon-row button:disabled {
   opacity: 0.5;

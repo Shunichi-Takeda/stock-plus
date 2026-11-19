@@ -22,6 +22,7 @@
     toolBoxButtons: ".chatListItemToolBox button",
     // 既存ボタンのラベル
     ackLabel: "了解しました", // 未了解のとき。了解済みのときは「了解解除」
+    ackedLabel: "了解解除",
     taskLabel: "タスクを作成",
     // 「タスクを作成」ダイアログ
     taskModal: ".taskModal",
@@ -36,6 +37,11 @@
   const EXTRA_CLASS = "stock-plus-has-extra-row";
   const TITLE_PREFIX = "対応を承る";
   const SUMMARY_MAX = 30;
+  // 既存ボタンのアイコン（高さ11px・currentColor）に合わせた、二重チェックのアイコン
+  const ICON_SVG =
+    '<svg viewBox="0 0 16 11" height="11" width="16" fill="none" stroke="currentColor" ' +
+    'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<polyline points="1,6 4.5,9.5 10,2"/><polyline points="7,9.5 8,9.5 15,2"/></svg>';
 
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -104,7 +110,6 @@
     let box = currentBox(msg, room, signature);
     if (!box) return;
     btn.disabled = true;
-    const originalText = btn.textContent;
     try {
       // 1. 了解しました（未了解のときだけ）
       const ack = buttonByLabel(box, SELECTORS.ackLabel);
@@ -146,11 +151,45 @@
       await waitFor(() => !openTaskModal(), 4000);
     } finally {
       btn.disabled = false;
-      btn.textContent = originalText;
     }
   }
 
   // ---- 各メッセージの操作ボックスに2行目を追加 --------------------------------
+
+  /** 「了解しました」（または了解済みの「了解解除」）のボタン。自分のメッセージには無い */
+  function ackButtonOf(box) {
+    return buttonByLabel(box, SELECTORS.ackLabel) || buttonByLabel(box, SELECTORS.ackedLabel);
+  }
+
+  /** 2行目を作る。「了解しました」の真下に揃えるため、それより前のボタンと同じ幅の見えない余白を置く */
+  function buildRow(msg, box) {
+    const row = document.createElement("div");
+    row.className = ROW_CLASS;
+    row.dataset.stockPlusInstance = window.StockPlus.instanceId;
+
+    const ack = ackButtonOf(box);
+    for (const b of box.querySelectorAll(":scope > button")) {
+      if (b === ack) break;
+      const spacer = b.cloneNode(true);
+      spacer.className = "stock-plus-takeon-spacer";
+      spacer.setAttribute("aria-hidden", "true");
+      spacer.tabIndex = -1;
+      row.appendChild(spacer);
+    }
+
+    // 既存ボタンと同じ「アイコン＋ラベル」の構成にして、色・サイズも既存のスタイルを継承する
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.innerHTML = ICON_SVG + "<span>対応します！</span>";
+    btn.title = "「了解しました」を押して、「対応を承る」タスクを作成します（Stock Plus）";
+    btn.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      takeOn(msg, btn);
+    });
+    row.appendChild(btn);
+    return row;
+  }
 
   function ensureRows() {
     const enabled = window.StockPlus.isFeatureEnabled(SETTING_ID);
@@ -159,7 +198,8 @@
       if (!box) continue;
       let row = box.querySelector("." + ROW_CLASS);
 
-      if (!enabled) {
+      // 設定OFF、または「了解しました」の無いメッセージ（自分の発言など）には出さない
+      if (!enabled || !ackButtonOf(box)) {
         if (row) row.remove();
         box.classList.remove(EXTRA_CLASS);
         continue;
@@ -170,20 +210,7 @@
         row = null;
       }
       if (!row) {
-        row = document.createElement("div");
-        row.className = ROW_CLASS;
-        row.dataset.stockPlusInstance = window.StockPlus.instanceId;
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.textContent = "対応します！";
-        btn.title = "「了解しました」を押して、「対応を承る」タスクを作成します（Stock Plus）";
-        btn.addEventListener("click", (ev) => {
-          ev.preventDefault();
-          ev.stopPropagation();
-          takeOn(msg, btn);
-        });
-        row.appendChild(btn);
-        box.appendChild(row);
+        box.appendChild(buildRow(msg, box));
       }
       box.classList.add(EXTRA_CLASS);
     }
