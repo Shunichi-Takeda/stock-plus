@@ -12,7 +12,8 @@
  *
  * 置き換えの扱い:
  *  - 未了解のメッセージでは「了解しました」を隠して、同じ位置に「対応します！」を出す
- *  - 了解済みのメッセージでは、取り消せるよう「了解解除」は残し、その隣に「対応します！」を出す
+ *  - 了解済みのメッセージでは、「了解解除」を「対応解除」の表記に置き換えて残す
+ *    （押すとStock標準の了解解除が働く）。「対応します！」はその間は出さない
  *  - 自分の発言など「了解しました」の無いメッセージには出さない
  *
  * ノートに紐づかないメッセージの場合は、備考の先頭に「グループ：（グループ名）」を足す
@@ -36,6 +37,8 @@
     // 既存ボタンのラベル
     ackLabel: "了解しました", // 未了解のとき。了解済みのときは「了解解除」
     ackedLabel: "了解解除",
+    // 「了解解除」を置き換えて見せる文言（対応します！を押したあとの解除リンク）
+    takeOnAckedLabel: "対応解除",
     taskLabel: "タスクを作成",
     // 「タスクを作成」ダイアログ
     taskModal: ".taskModal",
@@ -250,7 +253,30 @@
 
   /** 「了解しました」（または了解済みの「了解解除」）のボタン。自分のメッセージには無い */
   function ackButtonOf(box) {
-    return buttonByLabel(box, SELECTORS.ackLabel) || buttonByLabel(box, SELECTORS.ackedLabel);
+    return (
+      buttonByLabel(box, SELECTORS.ackLabel) ||
+      buttonByLabel(box, SELECTORS.ackedLabel) ||
+      buttonByLabel(box, SELECTORS.takeOnAckedLabel) // 当拡張が「了解解除」を置き換えたもの
+    );
+  }
+
+  /** 「了解解除」のラベルを「対応解除」に見せる（表記だけの置き換え。動作はStock標準のまま） */
+  function relabelAcked(ack) {
+    const label = ack.querySelector("span");
+    if (!label || (label.textContent || "").trim() !== SELECTORS.ackedLabel) return;
+    label.textContent = SELECTORS.takeOnAckedLabel;
+    ack.dataset.stockPlusRelabeled = "1";
+  }
+
+  /** 置き換えた表記を「了解解除」に戻す */
+  function restoreAckedLabel(box) {
+    for (const b of box.querySelectorAll("button[data-stock-plus-relabeled]")) {
+      const label = b.querySelector("span");
+      if (label && (label.textContent || "").trim() === SELECTORS.takeOnAckedLabel) {
+        label.textContent = SELECTORS.ackedLabel;
+      }
+      delete b.dataset.stockPlusRelabeled;
+    }
   }
 
   /** 「対応します！」ボタンを作る。既存ボタンと同じ「アイコン＋ラベル」の構成で、色・サイズは既存のスタイルを継承 */
@@ -269,10 +295,11 @@
     return btn;
   }
 
-  /** このプラグインが足したもの（置き換えボタン・「了解しました」の非表示）をすべて元に戻す */
+  /** このプラグインが足したもの（置き換えボタン・「了解しました」の非表示・解除の表記）をすべて元に戻す */
   function clearExtras(box) {
     box.querySelector("." + INLINE_CLASS)?.remove();
     box.querySelectorAll("." + ACK_HIDDEN_CLASS).forEach((b) => b.classList.remove(ACK_HIDDEN_CLASS));
+    restoreAckedLabel(box);
   }
 
   function ensureButtons() {
@@ -288,6 +315,17 @@
         continue;
       }
 
+      const notAcked = (ack.textContent || "").trim() === SELECTORS.ackLabel;
+
+      // 了解済み: 「了解解除」を「対応解除」の表記にし、「対応します！」は出さない
+      if (!notAcked) {
+        box.querySelector("." + INLINE_CLASS)?.remove();
+        ack.classList.remove(ACK_HIDDEN_CLASS);
+        relabelAcked(ack);
+        continue;
+      }
+
+      // 未了解: 「了解しました」を隠して、同じ位置に「対応します！」を出す
       let inline = box.querySelector("." + INLINE_CLASS);
       if (inline && inline.dataset.stockPlusInstance !== window.StockPlus.instanceId) {
         inline.remove(); // 旧インスタンスのボタンはハンドラが無効なので作り直す
@@ -298,9 +336,7 @@
         inline.classList.add(INLINE_CLASS);
       }
       if (ack.nextElementSibling !== inline) ack.insertAdjacentElement("afterend", inline);
-      // 未了解のときだけ「了解しました」を隠す（了解済みなら「了解解除」は残して、取り消せるようにする）
-      const notAcked = (ack.textContent || "").trim() === SELECTORS.ackLabel;
-      ack.classList.toggle(ACK_HIDDEN_CLASS, notAcked);
+      ack.classList.add(ACK_HIDDEN_CLASS);
     }
   }
 
