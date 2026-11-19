@@ -6,8 +6,7 @@
  *
  *  1. 「了解しました」を押す（すでに了解済みなら押さない。押すと了解が外れるため）
  *  2. 「タスクを作成」のダイアログを開き、タスク名を
- *     「mm/dd hh:mm 【（自分） 対応】（投稿者）さん「（本文の先頭）」」にして保存する。
- *     （mm/dd hh:mm はメッセージの投稿日時）
+ *     「【（自分） 対応】（投稿者）さん「（本文の先頭）」」にして保存する。
  *     誰が（押した人）、誰の、どの内容について対応すると決めたかが、
  *     タスク一覧だけで分かるようにするため
  *
@@ -48,8 +47,6 @@
     roomName: "[class*='chatroom__nameBox__name'], .chatroom__nameBox__memberNames",
     // ダイアログの「依頼：○○ >>> 担当：○○」の名前（担当の初期値は押した本人）
     taskMemberName: ".taskModal__membersBox__name",
-    // メッセージの投稿日時（「本日 12:03」「昨日 11:10」「11/16 (月) 13:51」の形）
-    messageDate: ".chatListItem__topBox__date",
     // メッセージの送信者名
     senderName: ".chatListItem__topBox [class*='chatListItem__topBox__name']",
     taskSaveButton: "button.btn.blue",
@@ -142,36 +139,16 @@
     return chars.length > SUMMARY_MAX ? chars.slice(0, SUMMARY_MAX).join("") + "…" : line;
   }
 
-  const pad2 = (n) => String(n).padStart(2, "0");
-
   /**
-   * メッセージの投稿日時の表示を「mm/dd hh:mm」に変換する。
-   * 表示は「本日 12:03」「昨日 11:10」「11/16 (月) 13:51」の3種類（年付きも許容）。
-   * 読み取れなければ空文字を返す。
+   * タスク名: 【（自分） 対応】（投稿者）さん「（本文の先頭）」
+   * 分からない要素は省略する（投稿者が分からなければ「さん」ごと省く、
+   * 自分の名前が分からなければ「自分」）。
    */
-  function formatMessageTime(text, now = new Date()) {
-    const t = (text || "").replace(/\s+/g, " ").trim();
-    const rel = t.match(/^(本日|昨日)\s+(\d{1,2}):(\d{2})/);
-    if (rel) {
-      const d = new Date(now);
-      if (rel[1] === "昨日") d.setDate(d.getDate() - 1);
-      return `${pad2(d.getMonth() + 1)}/${pad2(d.getDate())} ${pad2(rel[2])}:${rel[3]}`;
-    }
-    const abs = t.match(/(?:\d{2,4}\/)?(\d{1,2})\/(\d{1,2})\s*(?:\([^)]*\))?\s*(\d{1,2}):(\d{2})/);
-    if (abs) return `${pad2(abs[1])}/${pad2(abs[2])} ${pad2(abs[3])}:${abs[4]}`;
-    return "";
-  }
-
-  /**
-   * タスク名: mm/dd hh:mm 【（自分） 対応】（投稿者）さん「（本文の先頭）」
-   * 分からない要素は省略する（日時が読めなければ先頭を省く、投稿者が分からなければ
-   * 「さん」ごと省く、自分の名前が分からなければ「自分」）。
-   */
-  function buildTitle(stamp, assignee, sender, summary) {
+  function buildTitle(assignee, sender, summary) {
     const who = assignee || "自分";
     const from = sender ? `${sender}さん` : "";
     const body = summary ? `「${summary}」` : "";
-    return `${stamp ? stamp + " " : ""}【${who} 対応】${from}${body}`;
+    return `【${who} 対応】${from}${body}`;
   }
 
   function setNativeValue(el, value) {
@@ -204,7 +181,6 @@
     const signature = (msg.querySelector(".chatListItem__message")?.textContent || "").trim();
     // 送信者はダイアログを開く前（画面が作り直される前）に控えておく
     const sender = (msg.querySelector(SELECTORS.senderName)?.textContent || "").trim();
-    const stamp = formatMessageTime(msg.querySelector(SELECTORS.messageDate)?.textContent);
     const groupName = (room?.querySelector(SELECTORS.roomName)?.textContent || "").trim();
     let box = currentBox(msg, room, signature);
     if (!box) return;
@@ -241,7 +217,7 @@
       // 担当者名（「依頼：○ >>> 担当：○」の後ろ側）。初期値は押した本人
       const names = modal.querySelectorAll(SELECTORS.taskMemberName);
       const assignee = names.length ? (names[names.length - 1].textContent || "").trim() : "";
-      const taskTitle = buildTitle(stamp, assignee, sender, summary);
+      const taskTitle = buildTitle(assignee, sender, summary);
       setNativeValue(titleInput, taskTitle);
 
       // ノートに紐づかないメッセージは、備考の先頭にグループ名を入れる（本文は残す）
@@ -284,7 +260,7 @@
     btn.dataset.stockPlusInstance = window.StockPlus.instanceId;
     btn.innerHTML = ICON_SVG + "<span>対応します！</span>";
     btn.title =
-      "「了解しました」を押して、「mm/dd hh:mm 【自分 対応】投稿者さん「本文」」のタスクを作成します（Stock Plus）";
+      "「了解しました」を押して、「【自分 対応】投稿者さん「本文」」のタスクを作成します（Stock Plus）";
     btn.addEventListener("click", (ev) => {
       ev.preventDefault();
       ev.stopPropagation();
