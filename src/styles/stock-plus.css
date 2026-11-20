@@ -408,13 +408,6 @@ html.stock-plus-favfolder-mode .groupsBody li.groupListItem.isSelected {
   top: calc(100% - 2px);
   bottom: auto !important;
 }
-/* 一覧の一番下のメッセージなどで表示枠の下に隠れる場合は、メッセージの内側（下端）に表示する */
-.chatListItemToolBox.stock-plus-rx-up {
-  top: auto !important;
-  bottom: 0 !important;
-  border-width: 1px;
-  border-radius: 3px;
-}
 .chatListItemToolBox .stock-plus-rx-btn .stock-plus-rx-emoji {
   margin-right: 2px;
   font-size: 11px;
