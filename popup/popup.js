@@ -63,6 +63,11 @@ const FEATURES = [
     // 真偽オプション（featureOptions に保存。デフォルトON）
     option: { key: "reactionsHideUnread", type: "checkbox", label: "操作ボタン列の「未読に戻す」を隠す", default: true },
   },
+  {
+    id: "mark-note-read",
+    name: "「ノートだけ既読」",
+    description: "メッセージ一覧に「ノートだけ既読」を追加。ノートに紐づくメッセージの未読だけをまとめて既読に",
+  },
 ];
 
 const list = document.getElementById("feature-list");

@@ -33,6 +33,7 @@
         "src/features/sendConfirm.js",
         "src/features/takeOnTask.js",
         "src/features/thanksDoneReactions.js",
+        "src/features/markNoteRead.js",
         "src/content.js"
       ],
       "css": ["src/styles/stock-plus.css"],
@@ -40,7 +41,7 @@
     },
     {
       "matches": ["https://www.stock-app.jp/*", "https://*.stock-app.jp/*"],
-      "js": ["src/features/thanksDoneReactions.main.js"],
+      "js": ["src/features/thanksDoneReactions.main.js", "src/features/markNoteRead.main.js"],
       "run_at": "document_idle",
       "world": "MAIN"
     }
