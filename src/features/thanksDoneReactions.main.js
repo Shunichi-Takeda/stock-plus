@@ -272,7 +272,7 @@
    * 一覧をスクロールする。本文に重ねて出すと末尾のURLなどが隠れるため、重ねない。
    * 一覧の下にスクロールの余地がなければ、一覧の下端に余白を足してからスクロールする。
    */
-  const ROOM_ATTR = "data-stock-plus-rx-room"; // 足した余白(px)。設定OFFのときに戻すために覚えておく
+  const ROOM_ATTR = "data-stock-plus-rx-room"; // 足した余白(px)。ポインタが一覧の外へ出たときと設定OFFのときに戻す
   function scrollerOf(item) {
     let el = item.parentElement;
     while (el && el !== document.body && !/(auto|scroll)/.test(getComputedStyle(el).overflowY)) el = el.parentElement;
@@ -291,19 +291,21 @@
     if (item.getBoundingClientRect().bottom > view.top + scroller.clientHeight + 1) return;
     const remaining = scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop;
     if (remaining < overflow) {
-      const added = Number(scroller.getAttribute(ROOM_ATTR) || 0) + Math.ceil(overflow - remaining);
-      const base = parseFloat(getComputedStyle(scroller).paddingBottom) - Number(scroller.getAttribute(ROOM_ATTR) || 0);
+      const prev = Number(scroller.getAttribute(ROOM_ATTR) || 0);
+      if (!prev) scroller.dataset.stockPlusRxRoomOrig = scroller.style.paddingBottom; // 足す前のインラインの値（たいてい空）
+      const added = prev + Math.ceil(overflow - remaining);
+      const base = parseFloat(getComputedStyle(scroller).paddingBottom) - prev;
       scroller.setAttribute(ROOM_ATTR, String(added));
       scroller.style.setProperty("padding-bottom", `${base + added}px`);
     }
     scroller.scrollTop += overflow;
   }
+  // 足した余白を戻す。インラインの値は足す前のものをそのまま書き戻す（CSS由来の余白を固定しないため）
   function removeRoom() {
     document.querySelectorAll(`[${ROOM_ATTR}]`).forEach((el) => {
-      const added = Number(el.getAttribute(ROOM_ATTR) || 0);
-      const cur = parseFloat(el.style.paddingBottom);
-      if (!Number.isNaN(cur)) el.style.paddingBottom = cur - added > 0 ? `${cur - added}px` : "";
+      el.style.paddingBottom = el.dataset.stockPlusRxRoomOrig || "";
       el.removeAttribute(ROOM_ATTR);
+      delete el.dataset.stockPlusRxRoomOrig;
     });
   }
 
@@ -315,6 +317,11 @@
       lastHovered = item;
       fitToolBox(item);
     }
+  });
+  // ポインタが一覧の外へ出たら、足した余白を戻す（残すと一覧の一番下に空白が残り続け、ルームを切り替えても残る）
+  document.addEventListener("mouseout", (e) => {
+    const scroller = e.target.closest && e.target.closest(`[${ROOM_ATTR}]`);
+    if (scroller && !(e.relatedTarget instanceof Node && scroller.contains(e.relatedTarget))) removeRoom();
   });
 
   // メッセージ下の表示（「1人が了解しました」と同じ形式）
