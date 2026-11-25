@@ -10,15 +10,14 @@
  *  - 対象は Stock（React/Redux）が持っている未読データ unreadsData.unreads のうち
  *    unreadableType === "Chat" かつ contentsType === "stock" かつ今のチームの companyId のもの。
  *    chatGroupId ごとにまとめる（タブの「ノートに紐づく(N)」と同じ数え方）
- *  - 1件ごとに、Stockがチャットを開いたときと同じく
- *    「UNREADS/DELETE_CHAT_UNREADS を dispatch → DELETE /chat_groups/{id}/unreads.json」を行う
+ *  - グループごとに、Stockがチャットを開いたときと同じ DELETE /chat_groups/{id}/unreads.json を呼び、
+ *    全部終わったら成功した分の UNREADS/DELETE_CHAT_UNREADS をまとめて dispatch する（画面では一度に消える）
  *  - 認証ヘッダーは画面と同じ（localStorage の uid / client / accessToken / expiry / tokenType）。
- *    WAFのチャレンジが有効なときは画面と同じく AwsWafIntegration.getToken() の値を付ける。
  *    拡張側で保存・外部送信はしない
- *  - 同時には投げず、1件ずつ間隔をあけて呼ぶ。失敗したらそこで止める
+ *  - 同時に送るのは CONCURRENCY 件まで。失敗したら、まだ送っていない分は送らずに止める
  *
- * このファイルはページ側（manifest の world: "MAIN"）で動く。Stock の内部データ（Redux store）と
- * AwsWafIntegration を読む必要があり、通常の content script（isolated world）からは読めないため。
+ * このファイルはページ側（manifest の world: "MAIN"）で動く。Stock の内部データ（Redux store）を
+ * 読む必要があり、通常の content script（isolated world）からは読めないため。
  * ON/OFF は markNoteRead.js（isolated world）が <html> の属性で渡す:
  *   data-stock-plus-note-read="on|off"
  */
@@ -46,7 +45,8 @@
   const UNREADABLE_CHAT = "Chat";
   const CONTENTS_STOCK = "stock";
   const ACTION_DELETE_CHAT_UNREADS = "UNREADS/DELETE_CHAT_UNREADS";
-  const INTERVAL_MS = 200;
+  // 同時に送る件数（Stock にはノートの分だけまとめて既読にする API が無いため、1グループずつ呼ぶ）
+  const CONCURRENCY = 5;
   // ----------------------------------------------------------------------
 
   // keepChatGroupsOpen: Stockが「このクラスの中のクリックでは一覧を閉じない」と扱うクラス
@@ -95,7 +95,7 @@
   }
 
   // ---------- API（画面と同じヘッダー） ----------
-  async function authHeaders() {
+  function authHeaders() {
     const get = (k) => localStorage.getItem(k);
     const client = get("client");
     const uid = get("uid");
@@ -110,18 +110,6 @@
       "token-type": tokenType,
       expiry: String(Number(expiry)),
     };
-    try {
-      const waf = window.AwsWafIntegration;
-      if (waf && typeof waf.getToken === "function") {
-        const token = await waf.getToken();
-        if (token) {
-          headers["Stock-Waf"] = "waf-challenge-enabled";
-          headers["x-aws-waf-token"] = token;
-        }
-      }
-    } catch (e) {
-      // 取れなければ付けずに送る（画面と同じ）
-    }
     return headers;
   }
 
@@ -130,11 +118,8 @@
       method: "DELETE",
       headers,
     });
-    // 202 は AWS WAF のチャレンジで弾かれたとき（Stock の画面も失敗扱いにしている）
-    if (!res.ok || res.status === 202) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
   }
-
-  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   async function run(link) {
     if (running) return;
@@ -147,35 +132,48 @@
       render();
       return;
     }
-    if (!confirm(`ノートに紐づくメッセージ ${ids.length}件を既読にします。よろしいですか？`)) return;
+    // Stock標準の「すべて既読」と同じく、確認なしですぐ既読にする
 
-    const headers = await authHeaders();
+    const headers = authHeaders();
     if (!headers) {
       alert("Stock Plus: ログイン情報を読み取れませんでした。ページを再読み込みしてからお試しください。");
       return;
     }
 
     running = true;
+    link.textContent = "既読にしています…";
     const store = findStore();
-    let done = 0;
-    try {
-      for (const id of ids) {
-        link.textContent = `既読にしています… ${done}/${ids.length}`;
-        await markChatGroupRead(id, headers);
-        // 成功してから画面側の未読を消す（失敗した分は未読のまま残す）
-        store.dispatch({ type: ACTION_DELETE_CHAT_UNREADS, payload: { chatGroupId: id } });
-        done++;
-        if (done < ids.length) await sleep(INTERVAL_MS);
+    const succeeded = [];
+    let error = null;
+    let next = 0;
+    // CONCURRENCY 件ずつ同時に送る。1件でも失敗したら、まだ送っていない分は送らない
+    async function worker() {
+      while (!error && next < ids.length) {
+        const id = ids[next++];
+        try {
+          await markChatGroupRead(id, headers);
+          succeeded.push(id);
+        } catch (e) {
+          if (!error) error = e;
+        }
       }
-    } catch (e) {
-      console.error("[Stock Plus] note-read failed", e);
-      alert(
-        `Stock Plus: ${ids.length}件中 ${done}件まで既読にしたところで止まりました（${e.message}）。\n` +
-          "残りは未読のままです。時間をおいて再度お試しください。"
-      );
+    }
+    try {
+      await Promise.all(Array.from({ length: Math.min(CONCURRENCY, ids.length) }, worker));
     } finally {
+      // 成功した分だけ、最後にまとめて画面側の未読を消す（失敗・未送信の分は未読のまま残す）
+      for (const id of succeeded) {
+        store.dispatch({ type: ACTION_DELETE_CHAT_UNREADS, payload: { chatGroupId: id } });
+      }
       running = false;
       render();
+    }
+    if (error) {
+      console.error("[Stock Plus] note-read failed", error);
+      alert(
+        `Stock Plus: ${ids.length}件中 ${succeeded.length}件を既読にしたところで止まりました（${error.message}）。\n` +
+          "残りは未読のままです。時間をおいて再度お試しください。"
+      );
     }
   }
 
