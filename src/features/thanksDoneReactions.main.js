@@ -267,33 +267,62 @@
     }
   }
 
-  // ボタン列が一覧の表示枠の下に隠れる場合（一番下のメッセージなど）は、メッセージの内側に出す
+  /*
+   * ボタン列が一覧の表示枠の下に隠れる場合（一番下のメッセージなど）は、ボタン列が見えるところまで
+   * 一覧をスクロールする。本文に重ねて出すと末尾のURLなどが隠れるため、重ねない。
+   * 一覧の下にスクロールの余地がなければ、一覧の下端に余白を足してからスクロールする。
+   */
+  const ROOM_ATTR = "data-stock-plus-rx-room"; // 足した余白(px)。ポインタが一覧の外へ出たときと設定OFFのときに戻す
+  function scrollerOf(item) {
+    let el = item.parentElement;
+    while (el && el !== document.body && !/(auto|scroll)/.test(getComputedStyle(el).overflowY)) el = el.parentElement;
+    return el && el !== document.body ? el : null;
+  }
   function fitToolBox(item) {
     if (!isEnabled()) return;
     const box = item.querySelector(".chatListItemToolBox");
     if (!box || !box.querySelector(".stock-plus-rx-btn") || !box.offsetWidth) return;
-    box.classList.remove("stock-plus-rx-up");
-    let scroller = item.parentElement;
-    while (scroller && scroller !== document.body && !/(auto|scroll|hidden)/.test(getComputedStyle(scroller).overflowY)) scroller = scroller.parentElement;
-    if (scroller && box.getBoundingClientRect().bottom > scroller.getBoundingClientRect().bottom) box.classList.add("stock-plus-rx-up");
+    const scroller = scrollerOf(item);
+    if (!scroller) return;
+    const view = scroller.getBoundingClientRect();
+    const overflow = Math.ceil(box.getBoundingClientRect().bottom - (view.top + scroller.clientHeight)) + 4;
+    if (overflow <= 4) return;
+    // メッセージ自体が表示枠の下にはみ出しているときは、Stock本来の動きと同じく何もしない
+    if (item.getBoundingClientRect().bottom > view.top + scroller.clientHeight + 1) return;
+    const remaining = scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop;
+    if (remaining < overflow) {
+      const prev = Number(scroller.getAttribute(ROOM_ATTR) || 0);
+      if (!prev) scroller.dataset.stockPlusRxRoomOrig = scroller.style.paddingBottom; // 足す前のインラインの値（たいてい空）
+      const added = prev + Math.ceil(overflow - remaining);
+      const base = parseFloat(getComputedStyle(scroller).paddingBottom) - prev;
+      scroller.setAttribute(ROOM_ATTR, String(added));
+      scroller.style.setProperty("padding-bottom", `${base + added}px`);
+    }
+    scroller.scrollTop += overflow;
+  }
+  // 足した余白を戻す。インラインの値は足す前のものをそのまま書き戻す（CSS由来の余白を固定しないため）
+  function removeRoom() {
+    document.querySelectorAll(`[${ROOM_ATTR}]`).forEach((el) => {
+      el.style.paddingBottom = el.dataset.stockPlusRxRoomOrig || "";
+      el.removeAttribute(ROOM_ATTR);
+      delete el.dataset.stockPlusRxRoomOrig;
+    });
   }
 
   let lastHovered = null;
   document.addEventListener("mouseover", (e) => {
     const item = e.target.closest && e.target.closest(".chatListItem[data-chat-id]");
-    // メッセージの外から入ってきたときに毎回測り直す（スクロールで位置が変わっていることがあるため）
+    // メッセージの外から入ってきたときに測る（スクロール中に自動でスクロールし返さないよう、スクロールでは測らない）
     if (item && !(e.relatedTarget instanceof Node && item.contains(e.relatedTarget))) {
       lastHovered = item;
       fitToolBox(item);
     }
   });
-  document.addEventListener(
-    "scroll",
-    () => {
-      if (lastHovered && lastHovered.isConnected && lastHovered.matches(":hover")) fitToolBox(lastHovered);
-    },
-    true
-  );
+  // ポインタが一覧の外へ出たら、足した余白を戻す（残すと一覧の一番下に空白が残り続け、ルームを切り替えても残る）
+  document.addEventListener("mouseout", (e) => {
+    const scroller = e.target.closest && e.target.closest(`[${ROOM_ATTR}]`);
+    if (scroller && !(e.relatedTarget instanceof Node && scroller.contains(e.relatedTarget))) removeRoom();
+  });
 
   // メッセージ下の表示（「1人が了解しました」と同じ形式）
   function renderReactions(item) {
@@ -326,7 +355,8 @@
   function teardown() {
     closePopover();
     document.querySelectorAll(".stock-plus-rx-btn, .stock-plus-rx-reactions").forEach((e) => e.remove());
-    for (const cls of ["stock-plus-rx-marker", "stock-plus-rx-hide", "stock-plus-rx-up"]) {
+    removeRoom();
+    for (const cls of ["stock-plus-rx-marker", "stock-plus-rx-hide"]) {
       document.querySelectorAll("." + cls).forEach((e) => e.classList.remove(cls));
     }
     document.querySelectorAll("[data-stock-plus-rx-sig]").forEach((e) => delete e.dataset.stockPlusRxSig);
@@ -346,7 +376,7 @@
       renderReactions(item);
     }
     if (openPopover && !document.body.contains(openPopover.anchor)) closePopover();
-    if (lastHovered && lastHovered.isConnected) fitToolBox(lastHovered); // ラベルが変わったときに測り直す
+    if (lastHovered && lastHovered.isConnected && lastHovered.matches(":hover")) fitToolBox(lastHovered); // ラベルが変わったときに測り直す
   }
 
   // ---------- 押した人の一覧（Stock の「了解しました」と同じポップアップ） ----------
