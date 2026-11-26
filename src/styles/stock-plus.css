@@ -464,3 +464,35 @@ body.stock-plus-rx-silent .modal-backdrop {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
 }
+
+/* ---- 「ノートだけ既読」（markNoteRead.main.js） ---- */
+/* Stock標準の「すべて既読」（.chatGroupsModal__header__markReadLnk）と同じ並び・大きさにそろえる */
+.chatGroupsModal .chatGroupsModal__header .stock-plus-note-read-lnk {
+  flex: 0 0 auto;
+  align-self: center;
+  margin: 0 7px;
+  font-size: 12px;
+  line-height: 1.4;
+  cursor: pointer;
+  white-space: nowrap;
+}
+/* ボタンが増える分、検索欄を縮められるようにする（標準は入力欄の幅で縮まず「＋新規メッセージ」が切れる） */
+.chatGroupsModal .chatGroupsModal__header:has(.stock-plus-note-read-lnk) .chatGroupsModal__header__searchInputCell {
+  min-width: 0;
+}
+.chatGroupsModal .chatGroupsModal__header:has(.stock-plus-note-read-lnk) .searchInputBox__input {
+  min-width: 0;
+  width: 0;
+  flex: 1 1 auto;
+}
+/* 「＋新規メッセージ」を「＋新規」に縮め、その分を検索欄に回す（文言はStock側のReactが描くのでCSSだけで差し替える） */
+.chatGroupsModal .chatGroupsModal__header:has(.stock-plus-note-read-lnk) .chatGroupsModal__header__newChatGroupLnk a {
+  font-size: 0;
+}
+.chatGroupsModal .chatGroupsModal__header:has(.stock-plus-note-read-lnk) .chatGroupsModal__header__newChatGroupLnk__icon {
+  font-size: 12px;
+}
+.chatGroupsModal .chatGroupsModal__header:has(.stock-plus-note-read-lnk) .chatGroupsModal__header__newChatGroupLnk a::after {
+  content: "新規";
+  font-size: 12px;
+}
